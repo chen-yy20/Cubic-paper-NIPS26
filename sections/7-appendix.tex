@@ -100,7 +100,7 @@ $t_0$, producing the cached velocity
 If this velocity is reused for the next $\tau_b$ solver steps, the local
 approximate dynamics follow a zero-order hold:
 \begin{equation}
-    \frac{dx_{\textrm{exact}}^{(b)}(t)}{dt}=v_0^{(b)}.
+    \frac{dx_{\textrm{cache}}^{(b)}(t)}{dt}=v_0^{(b)}.
 \end{equation}
 Let $x_{\textrm{exact}}^{(b)}(t)$ denote the exact trajectory. The cache-induced state
 error is
@@ -263,6 +263,11 @@ With the squared-error default $(\alpha,\beta)=(2,4)$, this becomes
 \end{equation}
 Thus, high-curvature blocks are refreshed more frequently, whereas
 low-curvature blocks can safely reuse cached states for longer intervals.
+Because the allocation depends on $(\alpha,\beta)$ only through
+$\gamma=\alpha/(\beta+1)$, matching the raw exponents is not required:
+the exponents fitted from cache-error probes, $(1.81,3.426)$, give
+$\gamma=0.409$, and yield nearly the same schedule as $\gamma=2/5$
+(Appendix~\ref{app:gamma}).
 
 To satisfy the target speedup constraint, we normalize the proportional
 rule. Let $\gamma=\alpha/(\beta+1)$. Then the continuous interval is
@@ -344,7 +349,7 @@ every step.
 \section{Details of Partitioning Strategy}
 \label{app:parition}
 
-In Sec.~\ref{sec:anchor_step}, we introduced the morphology-guided adaptive partitioning strategy. We find that the exact partitioning scheme has a minor impact on overall performance. For long-sequence, high-overhead models such as Wan (sequence length 32760), we adopt morphology-guided partitioning to accurately select tokens; for shorter, fast-inference models (sequence length 4096), a simple fixed-size partitioning achieves comparable results with lower overhead. We provide the detailed algorithmic steps of the morphology-guided strategy here. The input is the raw token-space curvature map $\kappa \in \mathbb{R}^{F_t \times H_t \times W_t}$ computed at the current anchor step.
+In Sec.~\ref{sec:anchor_step}, we introduced the morphology-guided adaptive partitioning strategy. The preferred partitioning scheme is model-dependent (Appendix~\ref{app:granularity}). For long-sequence, high-overhead models such as Wan (sequence length 32760), we adopt coarse morphology-guided partitioning, which improves fidelity over a uniform grid with a matched number of blocks; for shorter, fast-inference models such as Flux (sequence length 4096), a simple fixed-size partitioning achieves comparable quality with much lower overhead. We provide the detailed algorithmic steps of the morphology-guided strategy here. The input is the raw token-space curvature map $\kappa \in \mathbb{R}^{F_t \times H_t \times W_t}$ computed at the current anchor step.
 
 \paragraph{1. Spatial-Temporal Reduction}
 Since the spatial partition should remain stable across the subsequent selective steps within the same anchor interval, we first aggregate the curvature information along the temporal dimension to obtain a 2D spatial curvature map:
@@ -398,10 +403,12 @@ This mean aggregation is stable precisely because Step 3 guarantees that any blo
 \label{app:detail_result}
 We report the detailed parameter settings and performance of \cubic in Table~\ref{tab:detail}. For completeness, Table~\ref{tab:detail_baseline} provides the corresponding configurations and results of other baseline methods.
 
+\paragraph{FireRed baselines.} FireRed has no official implementation of the caching baselines. We adapt TeaCache, TaylorSeer, PAB, and ToCa from their official open-source implementations on analogous models, preserving their respective similarity-probe, Taylor-prediction, attention-caching, and token-selection mechanisms. For fairness, all methods use identical FireRed weights, scheduler, precision, inputs, prompts, seeds, CFG scale, and denoising steps. The cache state is reset before every sample, and all outputs are evaluated against the same uncached baseline with a single timing and quality pipeline. We will release the complete FireRed adaptations, configurations, and run scripts.
+
 \begin{table*}[h]
 \centering
 \caption{Parameters setting and performance of \cubic }
-\label{tab:detail}´
+\label{tab:detail}
 \input{table/detail}
 \end{table*}
 
@@ -411,6 +418,131 @@ We report the detailed parameter settings and performance of \cubic in Table~\re
 \label{tab:detail_baseline}
 \input{table/detail_baseline}
 \end{table*}
+
+\newpage
+
+\section{Additional Experiments}
+\label{app:extra_exp}
+This section reports a direct comparison with Jano and ablations on the system choices of \cubic. Unlike the main experiments, these runs use an NVIDIA H20 GPU. Speedup is normalized by the uncached model on the same code path as each method, and PSNR, SSIM, and LPIPS are computed against the uncached output with the same prompt and seed. Entries with $\pm$ report the mean and standard deviation over samples. Here $\rho$ follows the convention of Sec.~\ref{sec:optimizer}, i.e., the target speedup of the selective phase.
+
+\subsection{Direct Comparison with Jano}
+\label{app:jano}
+\paragraph{Protocol.} To avoid selecting the operating point of \cubic on the evaluation data, we sample two disjoint prompt sets with a fixed random seed. For Flux, we draw 4 tuning prompts and 16 test prompts from t2i-diversity-eval~\cite{brack2025howtotrain}; for Wan2.1-1.3B, we draw 3 tuning prompts and 12 test prompts from the VBench prompt list~\cite{vbench}. Jano uses its official default configuration throughout. On the tuning prompts with seed 42, we sweep the target speedup $\rho$ of \cubic (and, on Wan, the number of full-compute warm-up steps), and keep the configurations that are faster than Jano and better on all three fidelity metrics. These configurations are then evaluated once on the test prompts with seeds 42 and 43, giving 32 Flux and 24 Wan samples. Flux uses $1024\times1024$ resolution, 50 steps, and guidance scale 3.5, and both methods use 7 full-compute steps at the beginning and 2 at the end. Wan generates 81 frames at $832\times480$ with 50 steps; Jano uses its default 6 and 4 full-compute steps, and \cubic uses 11 and 1. Each Flux run performs one untimed warm-up generation before timing. Jano on Flux records only the aggregate latency over all samples, so its speedup has no standard deviation.
+
+\begin{table}[h]
+\centering
+\caption{Direct comparison with Jano on held-out test prompts (Flux: 16 prompts $\times$ 2 seeds; Wan2.1-1.3B: 12 prompts $\times$ 2 seeds). Wins count the samples on which \cubic beats Jano under the same prompt and seed, listed for PSNR/SSIM/LPIPS.}
+\label{tab:jano}
+\small
+\setlength{\tabcolsep}{3.5pt}
+\begin{tabular}{llccccc}
+\toprule
+Model & Method & Speedup $\uparrow$ & PSNR $\uparrow$ & SSIM $\uparrow$ & LPIPS $\downarrow$ & Wins \\
+\midrule
+\multirow{3}{*}{Flux} & Jano & 2.18$\times$ & 21.93$\pm$4.03 & 0.788$\pm$0.103 & 0.225$\pm$0.096 & -- \\
+ & \cubic ($\rho=5$) & 2.43$\pm$0.16$\times$ & \textbf{23.47$\pm$4.12} & \textbf{0.842$\pm$0.086} & \textbf{0.145$\pm$0.075} & 29/30/32 \\
+ & \cubic ($\rho=6$) & \textbf{2.63$\pm$0.12$\times$} & 22.79$\pm$4.05 & 0.823$\pm$0.097 & 0.171$\pm$0.084 & 27/29/32 \\
+\midrule
+\multirow{3}{*}{Wan2.1-1.3B} & Jano & 2.28$\pm$0.21$\times$ & 20.64$\pm$3.03 & 0.766$\pm$0.101 & 0.147$\pm$0.046 & -- \\
+ & \cubic ($\rho=6$) & \textbf{2.36$\pm$0.05$\times$} & 23.78$\pm$3.04 & 0.843$\pm$0.062 & 0.096$\pm$0.033 & 24/22/23 \\
+ & \cubic ($\rho=5$) & 2.22$\pm$0.03$\times$ & \textbf{24.47$\pm$3.21} & \textbf{0.860$\pm$0.056} & \textbf{0.084$\pm$0.030} & 24/23/24 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Table~\ref{tab:jano} shows that on Flux both configurations of \cubic are faster than Jano, by 12\% and 20\%, and better on all three fidelity metrics. On Wan, \cubic with $\rho=6$ is better on all three fidelity metrics at a comparable speed: its mean speedup is 4\% higher, but it is faster than Jano on only 16 of 24 samples, so we do not claim a speed advantage. Under a paired Wilcoxon signed-rank test, every fidelity improvement in Table~\ref{tab:jano} has $p<10^{-4}$, and the speedup difference on Wan has $p=0.10$. \cubic also has a much smaller speedup variance on Wan, since its compute is fixed by $\rho$, whereas Jano's depends on the content.
+
+Fig.~\ref{fig:jano_flux} and Fig.~\ref{fig:jano_wan} show the seed-42 sample of the first three test prompts, so the examples are not selected by quality; in the first Flux example, Jano has a slightly higher PSNR. The two methods share the same uncached reference, shown in the first row.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.8\linewidth]{figure/jano_flux_comparison.pdf}
+    \caption{Flux outputs of the uncached model, Jano, and \cubic ($\rho=5$) under identical test prompts and seed 42. Numbers are per-image PSNR against the uncached output.}
+    \label{fig:jano_flux}
+\end{figure}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=\linewidth]{figure/jano_wan_comparison.pdf}
+    \caption{Wan2.1-1.3B outputs of the uncached model, Jano, and \cubic ($\rho=6$) under identical test prompts and seed 42, showing frames 20 and 60 of each video. Numbers are per-video PSNR averaged over all frames against the uncached output.}
+    \label{fig:jano_wan}
+\end{figure}
+
+\subsection{Sensitivity to the Scheduling Exponent}
+\label{app:gamma}
+Under the budget constraint, the interval allocation depends on the error exponents only through $\gamma=\alpha/(\beta+1)$ (Eq.~\eqref{eq:app_tau_general}). We fix the prompt, the $4\times4$ partition, the full-compute boundary, and $\rho=4$, and vary only $\gamma$ over seeds 42, 43, and 44 on Flux. The theoretical $\gamma=0.400$ and the fitted $\gamma=0.409$ assign identical intervals at the first anchor step, their interval histograms over all anchors differ by a single count, and their quality metrics coincide within display precision. Over $\gamma\in[0.3,0.6]$, speedup changes by about 1.4\% and LPIPS by 0.0066. This supports the equivalence of the theoretical and fitted exponents and low sensitivity around them, but not a unique optimum.
+
+\begin{table}[h]
+\centering
+\caption{Budget-controlled sweep of the scheduling exponent $\gamma$ on Flux ($\rho=4$, 3 seeds).}
+\label{tab:gamma}
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{clcccccc}
+\toprule
+$\gamma$ & Source & Active ratio & Latency (s) $\downarrow$ & Speedup $\uparrow$ & PSNR $\uparrow$ & SSIM $\uparrow$ & LPIPS $\downarrow$ \\
+\midrule
+0.300 & control & 0.4500 & 18.61 & 2.021$\times$ & 32.87 & 0.9737 & 0.0302 \\
+\rowcolor{lightbluerow}
+0.400 & theoretical $(2,4)$ & 0.4458 & 18.67 & 2.014$\times$ & 32.14 & 0.9702 & 0.0344 \\
+0.409 & fitted $(1.81,3.426)$ & 0.4458 & 18.63 & 2.019$\times$ & 32.13 & 0.9702 & 0.0344 \\
+0.500 & control & 0.4417 & 18.60 & 2.022$\times$ & 31.88 & 0.9692 & 0.0350 \\
+0.600 & control & 0.4304 & 18.35 & 2.049$\times$ & 31.75 & 0.9680 & 0.0368 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Anchor Horizon}
+\label{app:anchor_ablation}
+We compare the default selective-phase length $2\tau_{\max}$ with $1\tau_{\max}$, $3\tau_{\max}$, and a fixed gap of 7 steps, which is close to the mean gap of the default rule. All policies use $\rho=3$ and a $3\times3$ grid, and are evaluated on the same eight prompt--seed samples on Flux. The rank correlation measures how well the block curvature ordering at one anchor step agrees with that at the next one.
+
+\begin{table}[h]
+\centering
+\caption{Anchor horizon ablation on Flux ($\rho=3$, 8 samples).}
+\label{tab:anchor}
+\small
+\begin{tabular}{lccccc}
+\toprule
+Anchor policy & Mean gap & Active ratio & Speedup $\uparrow$ & PSNR $\uparrow$ & Curvature rank corr. \\
+\midrule
+$1\tau_{\max}$ & 3.35 & 0.646$\pm$0.045 & 1.520$\pm$0.114$\times$ & 34.43 & 0.750$\pm$0.027 \\
+\rowcolor{lightbluerow}
+$2\tau_{\max}$ & 6.69 & 0.603$\pm$0.014 & 1.630$\pm$0.047$\times$ & 34.14 & 0.702$\pm$0.021 \\
+$3\tau_{\max}$ & 9.63 & 0.582$\pm$0.004 & 1.690$\pm$0.021$\times$ & 34.09 & 0.650$\pm$0.035 \\
+Fixed gap 7 & 7.00 & 0.640$\pm$0.003 & 1.538$\pm$0.015$\times$ & 34.88 & 0.704$\pm$0.034 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Longer dynamic horizons increase speedup while the curvature ordering becomes less consistent between consecutive anchors, yet PSNR stays stable. This indicates that re-estimating curvature at each anchor corrects stale schedules before their errors persist. A fixed gap cannot follow the allocated intervals: among the 34 windows of the $2\tau_{\max}$ rule, a gap of 7 would re-plan too early for 11 and too late for 23. It therefore realizes a higher active ratio than the target and a lower speedup. Its higher PSNR together with lower speed reflects a different point on the latency--quality trade-off rather than dominance of either policy. We use $2\tau_{\max}$ as a balance between robustness and acceleration.
+
+\subsection{Block Granularity}
+\label{app:granularity}
+Table~\ref{tab:granularity} varies the partition at $\rho=3$. On Flux, we use the same eight samples as Appendix~\ref{app:anchor_ablation}. On Wan2.1-1.3B, we use a single prompt and seed with 17 frames and 20 steps, and compare adaptive partitions against uniform grids with nearly the same number of blocks, so that granularity and adaptivity are not confounded. Partition overhead is the time spent constructing the partition per anchor step.
+
+\begin{table}[h]
+\centering
+\caption{Block granularity ablation at $\rho=3$.}
+\label{tab:granularity}
+\small
+\begin{tabular}{llccccc}
+\toprule
+Model & Partition & Blocks & Speedup $\uparrow$ & PSNR $\uparrow$ & Active ratio & Overhead (ms) $\downarrow$ \\
+\midrule
+\multirow{4}{*}{Flux} & Uniform $3\times3$ & 9 & 1.630$\times$ & 34.14 & 0.603 & 1.05 \\
+ & Uniform $4\times4$ & 16 & 1.610$\times$ & 34.44 & 0.606 & 1.32 \\
+ & Uniform $6\times6$ & 36 & 1.577$\times$ & 33.96 & 0.614 & 2.94 \\
+ & Adaptive & -- & 1.387$\times$ & 33.68 & 0.620 & 518.45 \\
+\midrule
+\multirow{4}{*}{Wan2.1-1.3B} & Uniform $7\times7$ & 49 & 1.360$\times$ & 21.69 & 0.745 & 8.46 \\
+ & Adaptive (coarse) & 45 & 1.333$\times$ & 22.35 & 0.752 & 145.20 \\
+ & Uniform $14\times15$ & 210 & 1.335$\times$ & 21.61 & 0.746 & 15.12 \\
+ & Adaptive (fine) & 207 & 1.312$\times$ & 21.70 & 0.746 & 272.53 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+On Flux, neighboring uniform grids have similar active ratios and quality, while finer or adaptive partitions add overhead without a consistent quality gain. On Wan, coarse adaptive partitioning improves PSNR by 0.66 dB over the matched uniform grid, but this advantage disappears at the fine granularity while the overhead grows. Since the Wan comparison uses a single sample, we present it as evidence of the mechanism rather than a population-level result. Block granularity is therefore a model-dependent trade-off between spatial locality and system overhead, which motivates uniform grids for Flux and coarse adaptive partitions for Wan.
 
 \newpage
 
@@ -434,6 +566,6 @@ We provide visualization comparison between original video generation and \cubic
 \begin{figure*}[!h]
     \centering
     \includegraphics[width=\textwidth]{figure/wan_ori_cubic_video_comparison.pdf}
-    \caption{Wan 1.3B visualization comparison between original vedios (top) and \cubic results (bottom)}
+    \caption{Wan 1.3B visualization comparison between original videos (top) and \cubic results (bottom)}
     \label{fig:wan_visual}
 \end{figure*}

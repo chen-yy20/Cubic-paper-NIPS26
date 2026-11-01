@@ -3,16 +3,16 @@
 \paragraph{Models and Baselines.}
 We evaluate \cubic across three representative generative settings: text-to-image generation using Flux-1-dev~\cite{flux}, instruction-guided image editing using FireRed-Image-Edit-1.0~\cite{firered}, and text-to-video generation using Wan2.1-T2V-1.3B~\cite{wan}. We compare with state-of-the-art feature caching baselines, including TokenCache (ToCa)~\cite{tokencache}, TeaCache~\cite{teacache}, Pyramid Attention Broadcast (PAB)~\cite{pab}, and TaylorSeer~\cite{taylorseer}. 
 
-\paragraph{Metrics and Evaluation Datasets} We measure acceleration using the end-to-end latency under the default inference settings of each task. Generation quality is evaluated with PSNR, SSIM, LPIPS, and FID/FVD for both image and video outputs. For image generation, we additionally report HPSv3~\cite{HPSv3}, while video generation is further evaluated using VBench metrics. Experiments are conducted on t2i-diversity-eval~\cite{brack2025howtotrain}, PIE-Bench++~\cite{Pie_bench}, and VBench~\cite{vbench} for image generation, image editing, and video generation, respectively.
+\paragraph{Metrics and Evaluation Datasets} We measure acceleration using the end-to-end latency under the default inference settings of each task. Generation quality is evaluated with PSNR, SSIM, LPIPS, and FID/FVD for both image and video outputs. For image generation, we additionally report HPSv3~\cite{HPSv3}, while video generation is further evaluated using VBench metrics. Experiments are conducted on t2i-diversity-eval~\cite{brack2025howtotrain}, PIE-Bench++~\cite{Pie_bench}, and VBench~\cite{vbench} for image generation, image editing, and video generation, respectively. We randomly sample 500 prompts from t2i-diversity-eval and 200 examples from PIE-Bench++, and use 30 prompts from each VBench category. For all three tasks, the reference for PSNR, SSIM, and LPIPS is the output of the uncached full model under the same prompt, random seed, and initial noise, rather than dataset ground truth; for image editing, the reference additionally uses the same source image and editing instruction.
 
 \paragraph{Implementation} 
 \label{sec:Implementation}
-Experiments run on NVIDIA H100 using PyTorch. \cubic acts as a non-intrusive wrapper, with all methods sharing identical prompts and seeds for fair comparison. For caching baselines, we use their official implementations on Flux and Wan; for FireRed, which lacks official baseline support, we implement compatible versions (details in Appendix.~\ref{app:detail_result}). Our full codebase will be open-sourced.
+Experiments run on NVIDIA H100 using PyTorch. \cubic acts as a non-intrusive wrapper, with all methods sharing identical prompts and seeds for fair comparison. For caching baselines, we use their official implementations on Flux and Wan. FireRed, included to test generality across DiT architectures, lacks official baseline support, so we adapt each baseline from its official implementation on analogous models under identical inputs and settings (Appendix~\ref{app:detail_result}); our core conclusions rest primarily on Flux and Wan2.1. Our full codebase, including the FireRed baseline adaptations, configurations, and run scripts, will be open-sourced.
 
 \subsection{Main Results: Pareto-Optimal Acceleration}
 \paragraph{Quantitative Comparison}
 % 可以看到，Cubic在加速比更高的同时，比起其他cache加速方法达到了更高的生成质量。值得注意的是，对于attention在计算中耗时更大的模型（wan2.1),cubic更容易实现更高的加速。
-We evaluate the quality and efficiency of images and videos generated with \cubic (std: $\rho=2$, fast: $\rho=4$) against baseline methods, and summarize the results in Table \ref{tab:results}. Compared with existing caching-based acceleration methods, \cubic achieves higher speedups while preserving better generation quality. Notably, for models where attention accounts for a larger fraction of the overall computation, such as Wan2.1, \cubic can remove redundant computation more effectively, leading to more pronounced acceleration gains.
+We evaluate the quality and efficiency of images and videos generated with \cubic (std: $\rho=4$ for Flux and FireRed and $\rho=2$ for Wan; fast: $\rho=8$ for Flux and FireRed and $\rho=6$ for Wan; see Table~\ref{tab:detail}) against baseline methods, and summarize the results in Table \ref{tab:results}. Compared with existing caching-based acceleration methods, \cubic achieves higher speedups while preserving better generation quality. Notably, for models where attention accounts for a larger fraction of the overall computation, such as Wan2.1, \cubic can remove redundant computation more effectively, leading to more pronounced acceleration gains.
 \begin{table*}[t]
 \centering
 \caption{Quantitative evaluation of inference efficiency and visual quality in generation models.}
@@ -23,6 +23,10 @@ We evaluate the quality and efficiency of images and videos generated with \cubi
 \paragraph{Sensitivity Test on Quality-Latency Trade-off}
 Fig.~\ref{fig:tradeoff} reports the PSNR--speedup trade-off of \cubic and the compared baselines across different models. 
 Across a wide range of speedup ratios, \cubic consistently attains higher PSNR (with correspondingly stronger SSIM, LPIPS, and FID/FVD; see Appendix~\ref{app:detail_result}), thereby lying on the Pareto frontier of the quality--latency trade-off.
+
+\vspace{-7pt}
+\paragraph{Comparison with Jano}
+Jano~\cite{jano} is the closest token-level baseline and provides official implementations on Flux and Wan. We select the operating point of \cubic on separate tuning prompts and evaluate on held-out test prompts, with 32 Flux and 24 Wan samples (Appendix~\ref{app:jano}). On Flux, \cubic is both faster and more faithful: 2.43$\times$ vs.\ 2.18$\times$ speedup, 23.47 vs.\ 21.93 dB PSNR, and 0.145 vs.\ 0.225 LPIPS. On Wan2.1-1.3B, it reaches 23.78 vs.\ 20.64 dB PSNR and 0.096 vs.\ 0.147 LPIPS at a comparable speedup of 2.36$\times$ vs.\ 2.28$\times$. Side-by-side outputs under identical prompts and seeds are shown in Fig.~\ref{fig:jano_flux} and Fig.~\ref{fig:jano_wan}.
 
 
 % 这些实验都在flux上面做就好
@@ -40,7 +44,7 @@ We first validate whether the proposed endpoint-drift proxy accurately reflects 
 
 \vspace{-7pt}
 \paragraph{Verification of the Cache Error Modeling}
-We validate the cache-error bound derived in Eq.~\ref{eq:error_bound}. Fig.~\ref{fig:theory_validation}(c-d) confirm that the cache-induced error scales approximately quadratically with the reuse interval $\tau$ and linearly with the curvature proxy $\kappa$. These empirical scaling laws perfectly align with our theoretical derivations, demonstrating that the error model accurately captures the dominant behavior of cache-induced degradation.
+We validate the cache-error bound derived in Eq.~\ref{eq:error_bound}. Fig.~\ref{fig:theory_validation}(c-d) confirm that the cache-induced error scales approximately quadratically with the reuse interval $\tau$ and linearly with the curvature proxy $\kappa$. Fitting the squared error gives $(\alpha,\beta)=(1.81, 3.43)$, close to but not identical with the theoretical $(2,4)$. Since the interval allocation depends on the exponents only through $\gamma=\alpha/(\beta+1)$, the relevant comparison is $\gamma=0.409$ (fitted) vs.\ $0.400$ (theoretical). Under a fixed compute budget, the two values produce nearly identical discrete schedules and the same PSNR, SSIM, and LPIPS within display precision (Appendix~\ref{app:gamma}). The error model therefore captures the dominant scaling of cache-induced degradation; we do not claim that $\gamma=2/5$ is the empirical optimum.
 
 % \paragraph{Optimality of Interval Allocation}
 % % 相同speedup，验证-2/5次幂的tau分配生成效果是最好的。
@@ -49,16 +53,16 @@ We validate the cache-error bound derived in Eq.~\ref{eq:error_bound}. Fig.~\ref
 
 In Table.~\ref{tab:ablation}, we measure overhead and quality impact of \cubic components on Flux with standard setup.
 \vspace{-7pt}
-\paragraph{Monitor: Zero-Cost Proxy}
-Despite introducing negligible system overhead, our drift proxy achieves generation quality remarkably close to that of the exact curvature computed via automatic differentiation. This validates our theoretical insight: the proxy successfully captures the essential trajectory geometry required for optimal scheduling, completely bypassing the prohibitive computational burden of explicit Jacobians.
+\paragraph{Monitor: Lightweight Proxy}
+Compared with the exact curvature computed via automatic differentiation, our drift proxy reduces the monitoring overhead by more than two orders of magnitude while keeping SSIM nearly unchanged (0.964 vs.\ 0.967), at the cost of a moderate FID increase (37.5 vs.\ 33.1). The proxy thus retains most of the scheduling signal without computing explicit Jacobians.
 
 \input{table/ablation}
 \vspace{-7pt}
 \paragraph{Partitioner: Spatial Locality}
-While per-token scheduling theoretically offers maximum flexibility, it incurs prohibitive indexing overhead. \cubic's block-wise strategy exploits the spatial locality inherent in DiT attention, drastically reducing scheduling complexity while maintaining contextual coherence, thereby achieving superior fidelity over the fine-grained baseline.
+Per-token scheduling incurs prohibitive indexing overhead and, despite its finer granularity, lower fidelity: it lets adjacent tokens, which attend to each other with high weights, carry keys and values of different cache ages. Block-wise scheduling keeps neighbors on the same schedule, reducing scheduling cost and improving FID and SSIM. The preferred block granularity is model-dependent (Appendix~\ref{app:granularity}).
 \vspace{-7pt}
 \paragraph{Sparse Executor: Dynamic KV and Linear Scaling}
-While a static KV cache prevents contextual isolation, it inevitably accumulates staleness errors. Our dynamic in-place update mechanism seamlessly resolves this by continuously refreshing the KV pool, minimizing staleness at negligible I/O cost.
+While a static KV cache prevents contextual isolation, it inevitably accumulates staleness errors. Our dynamic in-place update mechanism reduces this error by continuously refreshing the KV pool, minimizing staleness at negligible I/O cost.
 Notably, layer-wise KV caches introduce memory requirements that scales with sequence length and layer count (e.g., 0.35GB for Flux vs. 17.68GB for Wan). To ensure deployability on memory-constrained hardware, we integrate asynchronous CPU offloading, which completely eliminates the GPU memory footprint of the cache at a marginal 5\% latency overhead.
 
 \begin{wrapfigure}{r}{0.37\columnwidth}
@@ -69,10 +73,10 @@ Notably, layer-wise KV caches introduce memory requirements that scales with seq
 \label{fig:flops}
 \vspace{-10pt}
 \end{wrapfigure}
-Fig ~\ref{fig:flops} demonstrates that \cubic strategy effectively reduces flops in the selective phase, while the sparse executor efficiently transforms this into an end-to-end linear speedup. The speedup is lower than the user target because the speedup here only considers the selective phase; if end-to-end speedup is required, a simple conversion can be performed.
+Fig ~\ref{fig:flops} demonstrates that \cubic strategy effectively reduces flops in the selective phase, while the sparse executor efficiently transforms this into an end-to-end linear speedup. The speedup is lower than the user target because the target only applies to the selective phase; the conversion from the selective-phase target to the overall compute fraction is given in Sec.~\ref{sec:optimizer}.
 
 
 
 \subsection{Case Study: Components visualization}
 \vspace{-7pt}
-Due to space constraints, detailed visualizations of the dynamic pipeline are deferred to Appendix~\ref{app:case_study}. At a target speedup of $3\times$, \cubic executes five anchor steps. The scheduling exhibits a clear temporal evolution: early steps show high and heterogeneous curvature, leading to diverse interval allocations; middle steps capture localized high-curvature windows; and late steps converge to uniform curvature with consistent caching strategies. Throughout the process, the sparse ratio is stably maintained around $0.33$, and the step latency correlates strictly with the active ratio.
+Due to space constraints, detailed visualizations of the dynamic pipeline are deferred to Appendix~\ref{app:case_study}. At a target speedup of $3\times$, \cubic executes five anchor steps. The scheduling exhibits a clear temporal evolution: early steps show high and heterogeneous curvature, leading to diverse interval allocations; middle steps capture localized high-curvature windows; and late steps converge to uniform curvature with consistent caching strategies. Throughout the process, the sparse ratio is stably maintained around $0.33$, and the step latency closely tracks the active ratio.

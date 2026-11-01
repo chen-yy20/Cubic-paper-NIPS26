@@ -18,10 +18,11 @@ As illustrated in Fig.~\ref{fig:overview}, \cubic exploits the spatial heterogen
 
 The pipeline alternates between two types of steps:
 \begin{itemize}
-    \item \textbf{Anchor Steps:} Full forward passes that act as the "brain" of the system. They refresh the exact velocity prediction for all tokens, measure the geometric properties of the trajectory, and dynamically re-evaluate the caching policy.
-    \item \textbf{Selective Steps:} Sparse forward passes that act as the "muscle" for acceleration. They compute only a dynamically chosen subset of tokens (active tokens), while the remaining tokens (frozen tokens) reuse cached intermediate states.
+    \item \textbf{Anchor Steps:} Full forward passes that act as the ``brain'' of the system. They refresh the exact velocity prediction for all tokens, measure the geometric properties of the trajectory, and dynamically re-evaluate the caching policy.
+    \item \textbf{Selective Steps:} Sparse forward passes that act as the ``muscle'' for acceleration. They compute only a dynamically chosen subset of tokens (active tokens), while the remaining tokens (frozen tokens) reuse cached intermediate states.
 \end{itemize}
 This anchor-selective decoupling divides the acceleration mechanism into two clean phases: \emph{estimation \& optimization} at anchor steps (Sec.~\ref{sec:anchor_step}), and \emph{sparse execution} at selective steps (Sec.~\ref{sec:selective_step}).
+The two phases rest on different kinds of justification. The curvature proxy, the error model, and the budget-constrained interval allocation are derived from the ODE analysis in Appendix~\ref{app:cubic_theory}. The anchor horizon and the block partition are empirical system choices: they do not change the allocation rule, but select an operating point on the latency--quality frontier for a given architecture (Appendix~\ref{app:extra_exp}).
 % This pipeline turns local trajectory geometry into a concrete execution policy: the monitor estimates curvature, the partitioner designs granularity, the optimizer assigns refresh intervals, and the runtime engine realizes those decisions as selective token computation.
 
 
@@ -39,7 +40,7 @@ Importantly, the monitor is updated only at anchor steps rather than at every sa
 \begin{equation}
     \hat{\delta}^{(i,m)} = \hat{x}_1^{(i)}(t_{a_m}) - \hat{x}_1^{(i)}(t_{a_{m-1}}).
 \end{equation}
-As rigorously derived in Appendix~\ref{app:curvature_proxy}, this drift scales proportionally to the local trajectory curvature $\kappa^{(i)}(t_{a_m})$, modulated by the remaining time horizon $(1-t_{a_m})$ and the step interval $\Delta t_{a_m} = |t_{a_m} - t_{a_{m-1}}|$.
+As derived in Appendix~\ref{app:curvature_proxy}, to first order this drift scales proportionally to the local trajectory curvature $\kappa^{(i)}(t_{a_m})$, modulated by the remaining time horizon $(1-t_{a_m})$ and the step interval $\Delta t_{a_m} = |t_{a_m} - t_{a_{m-1}}|$.
 
 Rearranging this relation directly gives the online curvature estimate:
 \begin{equation}
@@ -59,7 +60,7 @@ In practice, we compute this proxy in latent space and aggregate it to the token
 % \end{equation}
 % This block-wise curvature map $\{\kappa_b\}$ serves as the direct input for the subsequent budget-constrained interval optimization.
 
-However, assigning independent caching intervals to individual tokens incurs prohibitive scheduling overhead. Instead, \cubic groups adjacent tokens into rectangular blocks $\{B_b\}$ that share a unified update interval. To balance spatial granularity and scheduling efficiency, we employ a lightweight partitioning strategy guided by the curvature map (detailed in Appendix~\ref{app:parition}). Once the partition $\mathcal{P}=\{B_b\}$ is established, we aggregate the token-wise proxy into a representative block-wise score using a spatial mean:
+However, assigning independent caching intervals to individual tokens incurs prohibitive scheduling overhead. Instead, \cubic groups adjacent tokens into rectangular blocks $\{B_b\}$ that share a unified update interval. Sharing an interval also keeps neighboring tokens, which attend to each other with high attention weights in DiT self-attention, at the same cache age. Under per-token schedules, adjacent tokens would read keys and values computed at different steps (Sec.~\ref{sec:selective_step}), and this local inconsistency propagates through subsequent layers. To balance spatial granularity and scheduling efficiency, we employ a lightweight partitioning strategy guided by the curvature map (detailed in Appendix~\ref{app:parition}). Once the partition $\mathcal{P}=\{B_b\}$ is established, we aggregate the token-wise proxy into a representative block-wise score using a spatial mean:
     $\kappa_b = \frac{1}{|B_b|} \sum_{i \in B_b} \hat{\kappa}^{(i)}.$
 This block-wise curvature map $\{\kappa_b\}$ serves as the direct input for the subsequent budget-constrained interval optimization.
 
@@ -71,7 +72,7 @@ Let $x_{\text{exact}}^{(b)}(t)$ denote the exact trajectory, and $x_{\text{cache
     \varepsilon_{\tau_b}^{(b)} = x_{\text{cache}}^{(b)}(t_0 + \tau_b \Delta t) - x_{\text{exact}}^{(b)}(t_0 + \tau_b \Delta t).
     \label{eq:error_def}
 \end{equation}
-As rigorously derived in Appendix~\ref{app:error_modeling} using local Taylor expansion, this accumulated error is strictly controlled by the local trajectory curvature:
+As derived in Appendix~\ref{app:error_modeling}, if the curvature is bounded within the reuse window, this accumulated error is bounded by the local trajectory curvature:
 \begin{equation}
     \label{eq:error_bound}
     \left\|\varepsilon_{\tau_b}^{(b)}\right\|
@@ -90,7 +91,8 @@ We formalize interval allocation as a budget-constrained optimization problem. L
 \quad \text{s.t.} \quad
 \sum_{b=1}^{\mathcal{B}} \frac{|\mathcal{B}_b|}{N} \frac{1}{\tau_b} = \frac{1}{\rho},
 \end{equation}
-where $N = \sum_{b=1}^{\mathcal{B}} |\mathcal{B}_b|$ is the total number of tokens in the image, $\rho > 1$ is the target speedup factor, and $\tau_b \ge 1$ are the block-wise update intervals. The objective function minimizes the total expected squared error across the entire image, weighted by the number of tokens $|\mathcal{B}_b|$ per block, with the error bound per block squaring to $\kappa_b^\alpha \tau_b^\beta$. The constraint ensures that the token-weighted average update rate $\mathbb{E}[1/\tau_b]$ equals the reciprocal of the target speedup $1/\rho$, exactly enforcing the compute budget. This formulation jointly optimizes reconstruction quality and computational efficiency.
+where $N = \sum_{b=1}^{\mathcal{B}} |\mathcal{B}_b|$ is the total number of tokens in the image, $\rho > 1$ is the target speedup factor, and $\tau_b \ge 1$ are the block-wise update intervals. The objective function minimizes the total expected squared error across the entire image, weighted by the number of tokens $|\mathcal{B}_b|$ per block, with the error bound per block squaring to $\kappa_b^\alpha \tau_b^\beta$. The constraint ensures that the token-weighted average update rate $\mathbb{E}[1/\tau_b]$ equals the reciprocal of the target speedup $1/\rho$, exactly enforcing the compute budget.
+Note that $\rho$ specifies the compute budget of the selective steps only. Anchor steps and the full-compute steps at the beginning and end of sampling process all tokens. With $K_{\mathrm{full}}$ full-compute steps and $K_{\mathrm{sel}}$ selective steps, the overall token-compute fraction is $(K_{\mathrm{full}} + K_{\mathrm{sel}}/\rho)/(K_{\mathrm{full}} + K_{\mathrm{sel}})$, and the measured wall-clock speedup additionally reflects system overhead.
 % To minimize the total expected squared error across the \emph{entire} image, the objective function is naturally weighted by the number of tokens in each block. By squaring the truncation error bound in Eq.~\ref{eq:error_bound}, we have:
 % \begin{equation}
 %     \min_{\tau_b \ge 1}\; \sum_{b=1}^{\mathcal{B}} |\mathcal{B}_b| \, \kappa_b^\alpha \tau_b^\beta.
@@ -101,7 +103,7 @@ where $N = \sum_{b=1}^{\mathcal{B}} |\mathcal{B}_b|$ is the total number of toke
 % \end{equation}
 Intuitively, this ensures proportional FLOP savings: freezing a large block (high $|\mathcal{B}_b|$) for $\tau_b$ steps yields strictly greater computational reduction than freezing a smaller block with the same interval.
 
-As derived in Appendix~\ref{app:optimal_interval} via the Lagrange multiplier method, the block size weights $|\mathcal{B}_b|$ appear on both the objective and the constraint. Consequently, they cancel out during the first-order optimality condition. Substituting the theoretical defaults $(\alpha,\beta)=(2,4)$ to the resulting closed-form optimum  yields the final allocation rule:
+As derived in Appendix~\ref{app:optimal_interval} via the Lagrange multiplier method, the block size weights $|\mathcal{B}_b|$ appear on both the objective and the constraint. Consequently, they cancel out during the first-order optimality condition. The resulting optimum is $\tau_b^\star \propto \kappa_b^{-\gamma}$ with $\gamma=\alpha/(\beta+1)$, so the allocation depends on the two error exponents only through $\gamma$. Substituting the theoretical defaults $(\alpha,\beta)=(2,4)$ gives $\gamma=2/5$ and yields the final allocation rule:
 % \begin{equation}
 %     \tau_b^\star \propto \kappa_b^{-\alpha/(\beta+1)}.
 % \end{equation}
@@ -112,7 +114,7 @@ As derived in Appendix~\ref{app:optimal_interval} via the Lagrange multiplier me
 Thus, \cubic naturally assigns shorter intervals to high-curvature blocks and longer intervals to low-curvature ones, irrespective of their spatial sizes. In implementation, the continuous solution is discretized to valid integer bounds. 
 
 \paragraph{Effective ODE Strides}
-To ensure optimized intervals translate into actual FLOP savings, anchor steps dictate a selective phase length of $2\tau_{\max}$, where $\tau_{\max} = \max_{b \in \mathcal{P}} \tau_b$. This is the theoretical minimum integer boundary that prevents the slowest block's update from being immediately overwritten by the subsequent anchor step, thereby guaranteeing that every caching operation serves as an \emph{effective ODE stride}.
+To ensure optimized intervals translate into actual FLOP savings, anchor steps dictate a selective phase length of $2\tau_{\max}$, where $\tau_{\max} = \max_{b \in \mathcal{P}} \tau_b$. This receding-horizon rule is tied to the current allocation: it gives the blocks assigned the longest interval enough steps to execute their reuse schedule before curvature is re-estimated, so that caching operations serve as \emph{effective ODE strides} rather than being overwritten by the next anchor step. The factor of two is an empirical default rather than a theoretical optimum. If the curvature of a block changes within the window, its schedule is stale only until the next anchor step, which re-measures curvature and assigns shorter intervals to blocks whose curvature has increased. Appendix~\ref{app:anchor_ablation} compares this rule with shorter and longer horizons and with a fixed anchor gap.
 
 
 \subsection{Selective Steps: Sparse DiT Execution}
@@ -126,7 +128,7 @@ To ensure optimized intervals translate into actual FLOP savings, anchor steps d
 \begin{equation}
     \mathcal{A}_k = \{ b \in \mathcal{P} \mid s_k \bmod \tau_b = 0 \},
 \end{equation}
-where $s_k$ is the local step index within the selective phase. This induces the active and frozen token sets
+where $s_k$ is the local step index within the selective phase. The interval $\tau_b$ is an integer with $\tau_b \ge 1$. A block with $\tau_b = 1$ is recomputed at every selective step, and a block with $\tau_b > 1$ is recomputed every $\tau_b$ steps and stays frozen in between. This update-and-reuse cycle repeats until the next anchor step. The active blocks induce the active and frozen token sets
 \begin{equation}
     \Omega_k^{\mathrm{act}} = \bigcup_{b \in \mathcal{A}_k} \mathcal{B}_b,
     \qquad

@@ -1,4 +1,4 @@
-ha\documentclass{article}
+\documentclass{article}
 
 % if you need to pass options to natbib, use, e.g.:
 %     \PassOptionsToPackage{numbers, compress}{natbib}
@@ -58,7 +58,7 @@ ha\documentclass{article}
 \usepackage{amsfonts}       % blackboard math symbols
 \usepackage{nicefrac}       % compact symbols for 1/2, etc.
 \usepackage{microtype}      % microtypography
-\usepackage{xcolor}         % colors
+\usepackage[table]{xcolor}  % colors
 \usepackage{amsmath,amssymb,amsthm,mathtools}
 \usepackage{bm}
 \usepackage{graphicx}
@@ -102,7 +102,6 @@ ha\documentclass{article}
 \newcommand{\cyy}[1]{{\color{orange}[cyy: #1]}}
 \newcommand{\zlq}[1]{{\color{purple}[zlq: #1]}}
 \newcommand{\zyj}[1]{{\color{brown}[zyj: #1]}}
-\usepackage[table]{xcolor}
 % \definecolor{lightgrayrow}{gray}{0.93} % 数值越小越深，可改成 0.90 / 0.95
 \definecolor{lightbluerow}{rgb}{0.898, 0.945, 0.984}
 \usepackage{xspace}
@@ -137,7 +136,7 @@ Jidong Zhai\thanks{Tsinghua University. \texttt{zhaijidong@tsinghua.edu.cn}}
 \begin{figure}[h]
     \centering
     \includegraphics[width=\linewidth]{figure/tradeoff.pdf}
-    \caption{\cubic consistently achieves Pareto-optimal quality–efficiency trade-offs across all three generation tasks.}
+    \caption{\cubic consistently achieves Pareto-optimal quality--efficiency trade-offs across all three generation tasks.}
     \label{fig:tradeoff}
 \end{figure}
 \input{sections/0-abstract}
