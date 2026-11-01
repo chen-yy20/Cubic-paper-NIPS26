@@ -49,19 +49,18 @@ We validate the cache-error bound derived in Eq.~\ref{eq:error_bound}. Fig.~\ref
 \subsection{Ablation Studies on Core Components}
 
 In Table.~\ref{tab:ablation}, we measure overhead and quality impact of \cubic components on Flux with standard setup.
+
+
+\input{table/ablation}
 \vspace{-7pt}
 \paragraph{Monitor: Lightweight Proxy}
 Compared with the exact curvature computed via automatic differentiation, our drift proxy reduces the monitoring overhead by more than two orders of magnitude while keeping SSIM nearly unchanged (0.964 vs.\ 0.967), at the cost of a moderate FID increase (37.5 vs.\ 33.1). The proxy thus retains most of the scheduling signal without computing explicit Jacobians.
 
-\input{table/ablation}
-\vspace{-7pt}
 \paragraph{Partitioner: Spatial Locality}
 Per-token scheduling incurs prohibitive indexing overhead and, despite its finer granularity, lower fidelity: it lets adjacent tokens, which attend to each other with high weights, carry keys and values of different cache ages. Block-wise scheduling keeps neighbors on the same schedule, reducing scheduling cost and improving FID and SSIM. The preferred block granularity is model-dependent (Appendix~\ref{app:granularity}).
 \vspace{-7pt}
 \paragraph{Sparse Executor: Dynamic KV and Linear Scaling}
 While a static KV cache prevents contextual isolation, it inevitably accumulates staleness errors. Our dynamic in-place update mechanism reduces this error by continuously refreshing the KV pool, minimizing staleness at negligible I/O cost.
-Notably, layer-wise KV caches introduce memory requirements that scales with sequence length and layer count (e.g., 0.35GB for Flux vs. 17.68GB for Wan). To ensure deployability on memory-constrained hardware, we integrate asynchronous CPU offloading, which completely eliminates the GPU memory footprint of the cache at a marginal 5\% latency overhead.
-
 \begin{wrapfigure}{r}{0.37\columnwidth}
 \vspace{-12pt}
 \centering
@@ -70,6 +69,9 @@ Notably, layer-wise KV caches introduce memory requirements that scales with seq
 \label{fig:flops}
 \vspace{-12pt}
 \end{wrapfigure}
+Notably, layer-wise KV caches introduce memory requirements that scales with sequence length and layer count (e.g., 0.35GB for Flux vs. 17.68GB for Wan). To ensure deployability on memory-constrained hardware, we integrate asynchronous CPU offloading, which completely eliminates the GPU memory footprint of the cache at a marginal 5\% latency overhead.
+
+
 Fig ~\ref{fig:flops} demonstrates that \cubic strategy effectively reduces flops in the selective phase, while the sparse executor efficiently transforms this into an end-to-end linear speedup. The speedup is lower than the user target because the target only applies to the selective phase; the conversion from the selective-phase target to the overall compute fraction is given in Sec.~\ref{sec:optimizer}.
 
 
