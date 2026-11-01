@@ -8,7 +8,7 @@ We report end-to-end latency and evaluate quality with PSNR, SSIM, LPIPS, and FI
 
 \paragraph{Implementation} 
 \label{sec:Implementation}
-Experiments run on NVIDIA H100 using PyTorch. \cubic acts as a non-intrusive wrapper, and all methods share identical prompts and seeds. Baselines use their official implementations on Flux and Wan; for FireRed, which lacks official support, we adapt them from analogous models (Appendix~\ref{app:detail_result}). Code is available at \url{https://github.com/chen-yy20/Cubic}.
+Experiments run on NVIDIA H100 using PyTorch. \cubic acts as a non-intrusive wrapper, and all methods share identical prompts and seeds. Baselines use their official implementations on Flux and Wan; for FireRed, which lacks official support, we adapt them from analogous models (Appendix~\ref{app:detail_result}). Code is available at \url{https://github.com/chen-yy20/CuBic}.
 
 \subsection{Main Results: Pareto-Optimal Acceleration}
 \paragraph{Quantitative Comparison}
@@ -45,7 +45,7 @@ We validate the cache-error bound derived in Eq.~\ref{eq:error_bound}. Fig.~\ref
 
 % \paragraph{Optimality of Interval Allocation}
 % % 相同speedup，验证-2/5次幂的tau分配生成效果是最好的。
-
+\vspace{-7pt}
 \subsection{Ablation Studies on Core Components}
 
 In Table.~\ref{tab:ablation}, we measure overhead and quality impact of \cubic components on Flux with standard setup.
@@ -63,12 +63,12 @@ While a static KV cache prevents contextual isolation, it inevitably accumulates
 Notably, layer-wise KV caches introduce memory requirements that scales with sequence length and layer count (e.g., 0.35GB for Flux vs. 17.68GB for Wan). To ensure deployability on memory-constrained hardware, we integrate asynchronous CPU offloading, which completely eliminates the GPU memory footprint of the cache at a marginal 5\% latency overhead.
 
 \begin{wrapfigure}{r}{0.37\columnwidth}
-\vspace{-10pt}
+\vspace{-12pt}
 \centering
 \includegraphics[width=\linewidth]{figure/flops.pdf}
 \caption{FLOPs \& e2e speedup vs user-specified acceleration budget.}
 \label{fig:flops}
-\vspace{-10pt}
+\vspace{-12pt}
 \end{wrapfigure}
 Fig ~\ref{fig:flops} demonstrates that \cubic strategy effectively reduces flops in the selective phase, while the sparse executor efficiently transforms this into an end-to-end linear speedup. The speedup is lower than the user target because the target only applies to the selective phase; the conversion from the selective-phase target to the overall compute fraction is given in Sec.~\ref{sec:optimizer}.
 
