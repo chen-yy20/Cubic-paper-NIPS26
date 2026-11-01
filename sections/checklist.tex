@@ -95,8 +95,8 @@ ensuring reproducibility.
 
 \item {\bf Open access to data and code}
     \item[] Question: Does the paper provide open access to the data and code, with sufficient instructions to faithfully reproduce the main experimental results, as described in supplemental material?
-    \item[] Answer: \answerNo{} % Replace by \answerYes{}, \answerNo{}, or \answerNA{}.
-    \item[] Justification: If the paper is accepted or released on arXiv, we will open-source the implementation and provide detailed instructions for reproducing the main experimental results.
+    \item[] Answer: \answerYes{} % Replace by \answerYes{}, \answerNo{}, or \answerNA{}.
+    \item[] Justification: The implementation, baseline adaptations, configurations, and run scripts are available at \url{https://github.com/chen-yy20/Cubic}. All models and datasets used are publicly available.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that paper does not include experiments requiring code.
@@ -124,8 +124,7 @@ ensuring reproducibility.
 \item {\bf Experiment statistical significance}
     \item[] Question: Does the paper report error bars suitably and correctly defined or other appropriate information about the statistical significance of the experiments?
     \item[] Answer: \answerYes{} % Replace by \answerYes{}, \answerNo{}, or \answerNA{}.
-    \item[] Justification: We report the mean and standard deviation of inference
-time across as shown in Table~\ref{tab:results}.
+    \item[] Justification: We report the mean and standard deviation of inference time in Table~\ref{tab:results}. For the comparison with Jano, Appendix~\ref{app:jano} reports per-sample means and standard deviations, paired win counts, and paired Wilcoxon signed-rank tests on held-out prompts.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the paper does not include experiments.

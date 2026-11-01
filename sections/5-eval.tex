@@ -7,7 +7,7 @@ We evaluate \cubic across three representative generative settings: text-to-imag
 
 \paragraph{Implementation} 
 \label{sec:Implementation}
-Experiments run on NVIDIA H100 using PyTorch. \cubic acts as a non-intrusive wrapper, with all methods sharing identical prompts and seeds for fair comparison. For caching baselines, we use their official implementations on Flux and Wan. FireRed, included to test generality across DiT architectures, lacks official baseline support, so we adapt each baseline from its official implementation on analogous models under identical inputs and settings (Appendix~\ref{app:detail_result}); our core conclusions rest primarily on Flux and Wan2.1. Our full codebase, including the FireRed baseline adaptations, configurations, and run scripts, will be open-sourced.
+Experiments run on NVIDIA H100 using PyTorch. \cubic acts as a non-intrusive wrapper, with all methods sharing identical prompts and seeds for fair comparison. For caching baselines, we use their official implementations on Flux and Wan. FireRed, included to test generality across DiT architectures, lacks official baseline support, so we adapt each baseline from its official implementation on analogous models under identical inputs and settings (Appendix~\ref{app:detail_result}); our core conclusions rest primarily on Flux and Wan2.1. Our full codebase, including the FireRed baseline adaptations, configurations, and run scripts, is available at \url{https://github.com/chen-yy20/Cubic}.
 
 \subsection{Main Results: Pareto-Optimal Acceleration}
 \paragraph{Quantitative Comparison}
