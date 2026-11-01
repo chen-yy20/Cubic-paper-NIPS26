@@ -4,17 +4,16 @@
 We evaluate \cubic across three representative generative settings: text-to-image generation using Flux-1-dev~\cite{flux}, instruction-guided image editing using FireRed-Image-Edit-1.0~\cite{firered}, and text-to-video generation using Wan2.1-T2V-1.3B~\cite{wan}. We compare with state-of-the-art feature caching baselines, including TokenCache (ToCa)~\cite{tokencache}, TeaCache~\cite{teacache}, Pyramid Attention Broadcast (PAB)~\cite{pab}, and TaylorSeer~\cite{taylorseer}. 
 
 \paragraph{Metrics and Evaluation Datasets}
-
-We measure acceleration using end-to-end latency under each task’s default inference settings. Generation quality is evaluated with PSNR, SSIM, LPIPS, and FID/FVD for both image and video outputs. Image generation additionally reports HPSv3, while video generation is further evaluated with VBench metrics. Experiments are conducted on t2i-diversity-eval, PIE-Bench++, and VBench for image generation, image editing, and video generation, respectively. For PSNR, SSIM, and LPIPS, the reference is the output of the uncached full model under the same prompt, random seed, and initial noise, rather than dataset ground truth; for image editing, the same source image and editing instruction are also used.
+We report end-to-end latency and evaluate quality with PSNR, SSIM, LPIPS, and FID/FVD, plus HPSv3~\cite{HPSv3} for images and VBench metrics for videos, on t2i-diversity-eval~\cite{brack2025howtotrain}, PIE-Bench++~\cite{Pie_bench}, and VBench~\cite{vbench}, respectively. PSNR, SSIM, and LPIPS are measured against the uncached model under identical inputs (Appendix~\ref{app:detail_result}).
 
 \paragraph{Implementation} 
 \label{sec:Implementation}
-Experiments run on NVIDIA H100 using PyTorch. \cubic acts as a non-intrusive wrapper, with all methods sharing identical prompts and seeds for fair comparison. For caching baselines, we use their official implementations on Flux and Wan. FireRed, included to test generality across DiT architectures, lacks official baseline support, so we adapt each baseline from its official implementation on analogous models under identical inputs and settings (Appendix~\ref{app:detail_result}); our core conclusions rest primarily on Flux and Wan2.1. Our full codebase, including the FireRed baseline adaptations, configurations, and run scripts, is available at \url{https://github.com/chen-yy20/Cubic}.
+Experiments run on NVIDIA H100 using PyTorch. \cubic acts as a non-intrusive wrapper, and all methods share identical prompts and seeds. Baselines use their official implementations on Flux and Wan; for FireRed, which lacks official support, we adapt them from analogous models (Appendix~\ref{app:detail_result}). Code is available at \url{https://github.com/chen-yy20/Cubic}.
 
 \subsection{Main Results: Pareto-Optimal Acceleration}
 \paragraph{Quantitative Comparison}
 % 可以看到，Cubic在加速比更高的同时，比起其他cache加速方法达到了更高的生成质量。值得注意的是，对于attention在计算中耗时更大的模型（wan2.1),cubic更容易实现更高的加速。
-We evaluate the quality and efficiency of images and videos generated with \cubic (std: $\rho=4$ for Flux and FireRed and $\rho=2$ for Wan; fast: $\rho=8$ for Flux and FireRed and $\rho=6$ for Wan; see Table~\ref{tab:detail}) against baseline methods, and summarize the results in Table \ref{tab:results}. Compared with existing caching-based acceleration methods, \cubic achieves higher speedups while preserving better generation quality. Notably, for models where attention accounts for a larger fraction of the overall computation, such as Wan2.1, \cubic can remove redundant computation more effectively, leading to more pronounced acceleration gains.
+We evaluate the quality and efficiency of images and videos generated with \cubic under a standard and a fast setting (Table~\ref{tab:detail}) against baseline methods, and summarize the results in Table \ref{tab:results}. Compared with existing caching-based acceleration methods, \cubic achieves higher speedups while preserving better generation quality. Notably, for models where attention accounts for a larger fraction of the overall computation, such as Wan2.1, \cubic can remove redundant computation more effectively, leading to more pronounced acceleration gains.
 \begin{table*}[t]
 \centering
 \caption{Quantitative evaluation of inference efficiency and visual quality in generation models.}
@@ -24,11 +23,7 @@ We evaluate the quality and efficiency of images and videos generated with \cubi
 \vspace{-7pt}
 \paragraph{Sensitivity Test on Quality-Latency Trade-off}
 Fig.~\ref{fig:tradeoff} reports the PSNR--speedup trade-off of \cubic and the compared baselines across different models. 
-Across a wide range of speedup ratios, \cubic consistently attains higher PSNR (with correspondingly stronger SSIM, LPIPS, and FID/FVD; see Appendix~\ref{app:detail_result}), thereby lying on the Pareto frontier of the quality--latency trade-off.
-
-\vspace{-7pt}
-\paragraph{Comparison with Jano}
-Jano~\cite{jano} is the closest token-level baseline and provides official implementations on Flux and Wan. We select the operating point of \cubic on separate tuning prompts and evaluate on held-out test prompts, with 32 Flux and 24 Wan samples (Appendix~\ref{app:jano}). On Flux, \cubic is both faster and more faithful: 2.43$\times$ vs.\ 2.18$\times$ speedup, 23.47 vs.\ 21.93 dB PSNR, and 0.145 vs.\ 0.225 LPIPS. On Wan2.1-1.3B, it reaches 23.78 vs.\ 20.64 dB PSNR and 0.096 vs.\ 0.147 LPIPS at a comparable speedup of 2.36$\times$ vs.\ 2.28$\times$. Side-by-side outputs under identical prompts and seeds are shown in Fig.~\ref{fig:jano_flux} and Fig.~\ref{fig:jano_wan}.
+Across a wide range of speedup ratios, \cubic consistently attains higher PSNR (with correspondingly stronger SSIM, LPIPS, and FID/FVD; see Appendix~\ref{app:detail_result}), thereby lying on the Pareto frontier of the quality--latency trade-off. Against the token-level method Jano~\cite{jano}, \cubic also achieves higher fidelity at comparable or higher speedup on both Flux and Wan2.1 under a held-out prompt protocol (Appendix~\ref{app:jano}).
 
 
 % 这些实验都在flux上面做就好

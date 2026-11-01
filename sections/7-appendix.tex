@@ -403,6 +403,8 @@ This mean aggregation is stable precisely because Step 3 guarantees that any blo
 \label{app:detail_result}
 We report the detailed parameter settings and performance of \cubic in Table~\ref{tab:detail}. For completeness, Table~\ref{tab:detail_baseline} provides the corresponding configurations and results of other baseline methods.
 
+\paragraph{Evaluation protocol.} We randomly sample 500 prompts from t2i-diversity-eval and 200 examples from PIE-Bench++, and use 30 prompts from each VBench category. Latency is measured end to end under each task's default inference settings. The reference for PSNR, SSIM, and LPIPS is the output of the uncached full model under the same prompt, random seed, and initial noise, rather than dataset ground truth; for image editing, the reference also uses the same source image and editing instruction. The standard and fast settings of \cubic use $\rho=4$ and $\rho=8$ on Flux and FireRed, and $\rho=2$ and $\rho=6$ on Wan2.1.
+
 \paragraph{FireRed baselines.} FireRed has no official implementation of the caching baselines. We adapt TeaCache, TaylorSeer, PAB, and ToCa from their official open-source implementations on analogous models, preserving their respective similarity-probe, Taylor-prediction, attention-caching, and token-selection mechanisms. For fairness, all methods use identical FireRed weights, scheduler, precision, inputs, prompts, seeds, CFG scale, and denoising steps. The cache state is reset before every sample, and all outputs are evaluated against the same uncached baseline with a single timing and quality pipeline. The complete FireRed adaptations, configurations, and run scripts are included in our code release.
 
 \begin{table*}[h]
