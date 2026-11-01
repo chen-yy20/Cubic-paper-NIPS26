@@ -60,7 +60,6 @@ Per-token scheduling incurs prohibitive indexing overhead and, despite its finer
 \vspace{-7pt}
 \paragraph{Sparse Executor: Dynamic KV and Linear Scaling}
 While a static KV cache prevents contextual isolation, it inevitably accumulates staleness errors. Our dynamic in-place update mechanism reduces this error by continuously refreshing the KV pool, minimizing staleness at negligible I/O cost.
-Notably, layer-wise KV caches introduce memory requirements that scales with sequence length and layer count (e.g., 0.35GB for Flux vs. 17.68GB for Wan). To ensure deployability on memory-constrained hardware, we integrate asynchronous CPU offloading, which completely eliminates the GPU memory footprint of the cache at a marginal 5\% latency overhead.
 
 \begin{wrapfigure}{r}{0.37\columnwidth}
 \vspace{-12pt}
@@ -70,7 +69,9 @@ Notably, layer-wise KV caches introduce memory requirements that scales with seq
 \label{fig:flops}
 \vspace{-12pt}
 \end{wrapfigure}
-Fig ~\ref{fig:flops} demonstrates that \cubic strategy effectively reduces flops in the selective phase, while the sparse executor efficiently transforms this into an end-to-end linear speedup. The speedup is lower than the user target because the target only applies to the selective phase; the conversion from the selective-phase target to the overall compute fraction is given in Sec.~\ref{sec:optimizer}.
+Notably, layer-wise KV caches introduce memory requirements that scales with sequence length and layer count (e.g., 0.35GB for Flux vs. 17.68GB for Wan). To ensure deployability on memory-constrained hardware, we integrate asynchronous CPU offloading, which completely eliminates the GPU memory footprint of the cache at a marginal 5\% latency overhead.
+
+Fig.~\ref{fig:flops} demonstrates that \cubic strategy effectively reduces flops in the selective phase, while the sparse executor efficiently transforms this into an end-to-end linear speedup. The speedup is below the user target, which applies only to the selective phase (Sec.~\ref{sec:optimizer}).
 
 
 
