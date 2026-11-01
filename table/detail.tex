@@ -1,0 +1,42 @@
+\resizebox{0.7\textwidth}{!}{
+\begin{tabular}{l c c c c c c}
+\toprule
+\small
+\textbf{Model}
+& $\boldsymbol{\rho}$
+& $\mathrm{Speedup}\uparrow$
+& $\mathrm{PSNR}\uparrow$
+& $\mathrm{SSIM}\uparrow$
+& $\mathrm{LPIPS}\downarrow$
+& $\mathrm{FID/FVD}\downarrow$ \\
+\midrule
+
+% ===== Flux-1 =====
+\multirow{5}{*}{Flux-1}
+& 2  & 1.38$\times$ & 32.03 & 0.9445 & 0.0409 & 12.51 \\
+& 4  & 1.89$\times$ & 27.78 & 0.8998 & 0.0946 & 27.81 \\
+& 6  & 2.22$\times$ & 26.04 & 0.8691 & 0.1299 & 37.14 \\
+& 8  & 2.40$\times$ & 25.14 & 0.8457 & 0.1730 & 47.32 \\
+& 10 & 2.51$\times$ & 24.45 & 0.8282 & 0.1964 & 52.82 \\
+\midrule
+
+% ===== FireRed =====
+\multirow{5}{*}{FireRed}
+& 2  & 1.76$\times$ & 33.85 & 0.9711 & 0.0268 & 10.91 \\
+& 4  & 2.14$\times$ & 30.67 & 0.9538 & 0.0468 & 18.55 \\
+& 6  & 2.23$\times$ & 28.74 & 0.9310 & 0.0769 & 27.15 \\
+& 8  & 2.33$\times$ & 27.81 & 0.9201 & 0.0907 & 32.18 \\
+& 10 & 2.50$\times$ & 27.06 & 0.9080 & 0.1059 & 38.35 \\
+\midrule
+
+% ===== Wan-1.3B =====
+\multirow{5}{*}{Wan-1.3B}
+& 2  & 1.63$\times$ & 32.76 & 0.9481 & 0.0317 & 7.912 \\
+& 4  & 2.30$\times$ & 27.99 & 0.8990 & 0.0728 & 21.14 \\
+& 6  & 2.72$\times$ & 26.39 & 0.8740 & 0.0986 & 31.76 \\
+& 8  & 3.04$\times$ & 25.50 & 0.8501 & 0.1236 & 45.08 \\
+& 10 & 3.23$\times$ & 24.65 & 0.8284 & 0.1437 & 62.48 \\
+
+\bottomrule
+\end{tabular}
+}

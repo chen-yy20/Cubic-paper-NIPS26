@@ -1,0 +1,29 @@
+\section{Introduction}
+\label{sec:intro}
+
+Flow Matching (FM)~\cite{flowmatching,rectifiedflow,meanflow} has emerged as the dominant paradigm for state-of-the-art image~\cite{flux,qwenimage}, video~\cite{wan,hunyuan} and multi-modal~\cite{firered,omnidit,hunyuanimage3} generation. 
+By learning a neural velocity field to guide the transport path, FM achieves faster convergence and more stable training than traditional diffusion objectives~\cite{ddpm,ddim}.
+To capture long-range dependencies across spatiotemporal tokens, these models universally adopt Diffusion Transformers (DiT)~\cite{dit} equipped with full attention. However, the escalating sequence lengths combined with the quadratic complexity of full-attention impose a prohibitive computational burden. For instance, nearly one NVIDIA A100 hour is required to generate a mere 5-second clip on HunyuanVideo~\cite{hunyuan}, severely hindering real-time and interactive deployment.
+
+Traditional acceleration techniques -- such as distillation~\cite{distill1,distill2,distill3}, quantization~\cite{sageattention1,sageattention2,sageattention2+,sageattention3} and sparse kernels~\cite{sparsevideogen,sparsevideogen2} --- typically require architecture modifications or costly retraining. 
+In contrast, caching-based methods~\cite{teacache,pab,tokencache,blockdance,meancache,jano} have emerged as a light-weight, train-free alternative. They exploit temporal redundancy across adjacent denoising steps to bypass redundant computations. 
+However, existing caching paradigms are fundamentally hindered by two limitations that prevent them from achieving optimal speed-quality trade-offs:
+\begin{itemize}
+    \item {\textbf{The Granularity Dilemma:}} Coarse-grained caching ignores spatial heterogeneity, aggressively skipping computations and causing noticeable artifacts; whereas fine-grained caching introduces prohibitive runtime overhead through fragmented memory access. 
+    \item {\textbf{Reliance on Empirical Tuning:}} Most methods depend on model-specific, hand-tuned update intervals that lack a principled optimization objective, offering no formal guarantees on quality preservation under fixed compute budgets. 
+\end{itemize}
+
+To overcome these limitations, we must recognize the true mathematical nature of caching during FM sampling: reusing velocity output for $\tau$ steps is equivalent to extending the effective local integration step size of the ODE solver by a factor of $\tau$. 
+
+This reframing immediately points to the solution. The "granularity dilemma" is essentially a step-size allocation problem, while the "empirical tuning" issue stems from the lack of a variable to bound numerical error. Both are inherently governed by a single geometric property: the \textbf{curvature} of the velocity field. FM training inherently encourages straight trajectories for fast convergence, but deviations from this ideal manifest as high curvature, strictly mandating smaller steps to prevent numerical divergence. Conversely, low-curvature regions seamlessly tolerate aggressively enlarged steps. Therefore, curvature provides a theoretically grounded indicator for determining spatial granularity and characterizing staleness error, offering a bridge between empirical caching strategies and principled cache scheduling. 
+
+However, translating the theory into practice encounters two immediate barriers (detailed in Sec.~\ref{sec:motiv_theory}): computing exact curvature requires prohibitive Jacobian operations, and the mathematical mapping from curvature to actual caching error remains undefined. 
+
+Taking curvature as the unified theoretical knob, we propose \cubic, an FM acceleration framework specifically designed to bridge these theoretical barriers into practical speedups. 
+\begin{itemize}
+    \item \textbf{Bypassing the Jacobian Barrier:} \cubic introduces a lightweight online monitor that estimates curvature via \emph{endpoint prediction drift}, replacing expensive gradient computations with simple algebraic subtraction.
+    \item \textbf{Closing the Error Gap:} \cubic derives a closed-form error bound that scales as $\kappa \tau^2$. Using Lagrangian optimization, it converts this bound into a budget-constrained interval allocation rule, providing a principled alternative to purely empirical threshold tuning.
+    \item \textbf{Efficient Execution:} A sparse forward engine translates the proposed caching plans into highly efficient runtime via dynamic KV cache updating, ensuring mathematical guarantees directly translate into actual FLOP savings and good generation quality.
+\end{itemize}
+
+As shown in Fig.~\ref{fig:tradeoff}, experiments across diverse generation tasks---Flux.1~\cite{flux} for text-to-image, Wan2.1~\cite{wan} for text-to-video, and FireRed~\cite{firered} for image editing---demonstrate that \cubic consistently outperforms state-of-the-art caching baselines, delivering superior generation quality at any given computational budget.

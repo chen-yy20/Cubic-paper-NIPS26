@@ -1,0 +1,32 @@
+\begin{wraptable}{r}{0.37\textwidth}
+\vspace{-12pt}
+\centering
+\caption{Ablation Studies.}
+\label{tab:ablation}
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{0.95}
+\begin{tabular}{@{}l c c c@{}}
+\toprule
+\textbf{Variant} & \textbf{Over.} & \textbf{FID}$\downarrow$ & \textbf{SSIM}$\uparrow$ \\
+\midrule
+\multicolumn{4}{l}{\footnotesize\itshape Monitor} \\
+\quad Exact Jacobian & 603.9 & 33.1 & 0.967 \\
+\rowcolor{lightbluerow}
+\quad Proxy & \textbf{1.64} & 37.5 & 0.964 \\
+\midrule
+\multicolumn{4}{l}{\footnotesize\itshape Partitioner} \\
+\quad Per-Token & 123.9 & 57.4 & 0.952 \\
+\rowcolor{lightbluerow}
+\quad Block-wise & \textbf{6.97} & \textbf{37.5} & \textbf{0.964} \\
+\midrule
+\multicolumn{4}{l}{\footnotesize\itshape Sparse Executor} \\
+\quad w/o KV & 1.83 & 87.5 & 0.923 \\
+\quad Static KV & 2.08 & 74.7 & 0.932 \\
+\rowcolor{lightbluerow}
+\quad Dynamic KV & 2.12 & \textbf{37.6} & \textbf{0.964} \\
+\bottomrule
+\end{tabular}
+\vspace{-10pt}
+\end{wraptable}
+

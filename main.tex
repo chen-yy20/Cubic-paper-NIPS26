@@ -1,0 +1,158 @@
+ha\documentclass{article}
+
+% if you need to pass options to natbib, use, e.g.:
+%     \PassOptionsToPackage{numbers, compress}{natbib}
+% before loading neurips_2026
+
+% The authors should use one of these tracks.
+% Before accepting by the NeurIPS conference, select one of the options below.
+% 0. "default" for submission
+\usepackage[main, final]{neurips_2026}
+% the "default" option is equal to the "main" option, which is used for the Main Track with double-blind reviewing.
+% 1. "main" option is used for the Main Track
+%  \usepackage[main]{neurips_2026}
+% 2. "position" option is used for the Position Paper Track
+%  \usepackage[position]{neurips_2026}
+% 3. "eandd" option is used for the Evaluations & Datasets Track
+ % \usepackage[eandd]{neurips_2026}
+ % if you need to opt-in for a single-blind submission in the E&D track:
+ %\usepackage[eandd, nonanonymous]{neurips_2026}
+% 4. "creativeai" option is used for the Creative AI Track
+%  \usepackage[creativeai]{neurips_2026}
+% 5. "sglblindworkshop" option is used for the Workshop with single-blind reviewing
+ % \usepackage[sglblindworkshop]{neurips_2026}
+% 6. "dblblindworkshop" option is used for the Workshop with double-blind reviewing
+%  \usepackage[dblblindworkshop]{neurips_2026}
+
+% After being accepted, the authors should add "final" behind the track to compile a camera-ready version.
+% 1. Main Track
+ % \usepackage[main, final]{neurips_2026}
+% 2. Position Paper Track
+%  \usepackage[position, final]{neurips_2026}
+% 3. Evaluations & Datasets Track
+ % \usepackage[eandd, final]{neurips_2026}
+% 4. Creative AI Track
+%  \usepackage[creativeai, final]{neurips_2026}
+% 5. Workshop with single-blind reviewing
+%  \usepackage[sglblindworkshop, final]{neurips_2026}
+% 6. Workshop with double-blind reviewing
+%  \usepackage[dblblindworkshop, final]{neurips_2026}
+% Note. For the workshop paper template, both \title{} and \workshoptitle{} are required, with the former indicating the paper title shown in the title and the latter indicating the workshop title displayed in the footnote.
+% For workshops (5., 6.), the authors should add the name of the workshop, "\workshoptitle" command is used to set the workshop title.
+% \workshoptitle{WORKSHOP TITLE}
+
+% "preprint" option is used for arXiv or other preprint submissions
+ % \usepackage[preprint]{neurips_2026}
+
+% to avoid loading the natbib package, add option nonatbib:
+%    \usepackage[nonatbib]{neurips_2026}
+
+% ===========================
+% Packages
+% ===========================
+\usepackage[utf8]{inputenc} % allow utf-8 input
+\usepackage[T1]{fontenc}    % use 8-bit T1 fonts
+\usepackage{hyperref}       % hyperlinks
+\usepackage{url}            % simple URL typesetting
+\usepackage{booktabs}       % professional-quality tables
+\usepackage{amsfonts}       % blackboard math symbols
+\usepackage{nicefrac}       % compact symbols for 1/2, etc.
+\usepackage{microtype}      % microtypography
+\usepackage{xcolor}         % colors
+\usepackage{amsmath,amssymb,amsthm,mathtools}
+\usepackage{bm}
+\usepackage{graphicx}
+\usepackage{subcaption}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{multirow}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{wrapfig}
+
+% ===========================
+% Math environments
+% ===========================
+\newtheorem{theorem}{Theorem}
+\newtheorem{proposition}{Proposition}
+\newtheorem{corollary}{Corollary}
+\newtheorem{lemma}{Lemma}
+\theoremstyle{definition}
+\newtheorem{definition}{Definition}
+\theoremstyle{remark}
+\newtheorem*{remark}{Remark}
+
+% ===========================
+% Custom commands
+% ===========================
+\newcommand{\Cb}{\mathcal{C}_b}
+\newcommand{\Kb}{\mathcal{K}(b)}
+\newcommand{\lb}{\ell_b}
+\newcommand{\taub}{\tau_b}
+\newcommand{\taustar}{\tau_b^*}
+\newcommand{\xhat}{\hat{x}_1^{(b,k)}}
+\newcommand{\deltabk}{\delta^{(b,k)}}
+\newcommand{\Cavg}{\overline{\mathcal{C}^{2/3}}}
+\newcommand{\vtheta}{v_\theta}
+\newcommand{\rb}{\bar{r}_b}
+
+\newcommand{\cred}[1]{{\color{red}#1}}
+\newcommand{\question}[1]{{\color{blue}\large\textbf{#1}}}
+\newcommand{\todo}[1]{{\color{red}[TODO: #1]}}
+\newcommand{\cyy}[1]{{\color{orange}[cyy: #1]}}
+\newcommand{\zlq}[1]{{\color{purple}[zlq: #1]}}
+\newcommand{\zyj}[1]{{\color{brown}[zyj: #1]}}
+\usepackage[table]{xcolor}
+% \definecolor{lightgrayrow}{gray}{0.93} % 数值越小越深，可改成 0.90 / 0.95
+\definecolor{lightbluerow}{rgb}{0.898, 0.945, 0.984}
+\usepackage{xspace}
+\usepackage{wrapfig}
+\usepackage{graphicx}
+\newcommand{\cubic}{\textsc{Cubic}\xspace}
+
+% Note. For the workshop paper template, both \title{} and \workshoptitle{} are required, with the former indicating the paper title shown in the title and the latter indicating the workshop title displayed in the footnote. 
+
+\title{\cubic: Curvature-Driven Dynamic Inference Caching for Fast, High-Fidelity Flow Matching}
+
+% The \author macro works with any number of authors. There are two commands
+% used to separate the names and addresses of multiple authors: \And and \AND.
+%
+% Using \And between authors leaves it to LaTeX to determine where to break the
+% lines. Using \AND forces a line break at that point. So, if LaTeX puts 3 of 4
+% authors names on the first line, and the last on the second line, try using
+% \AND instead of \And before the third author name.
+
+
+\author{
+Yuyang Chen\thanks{Equal contribution.}\thanks{Shanghai Jiaotong University. \texttt{\{chen-yy20,028711zlq,708972751\}@sjtu.edu.cn}} \And
+Linqian Zeng\footnotemark[1]\footnotemark[2] \And
+Yijin Zhou\footnotemark[2] \And
+Hengjie Li\thanks{Shanghai AI Laboratory. \texttt{lihengjie@pjlab.org.cn}} \And
+Jidong Zhai\thanks{Tsinghua University. \texttt{zhaijidong@tsinghua.edu.cn}}
+}
+
+\begin{document}
+
+\maketitle
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=\linewidth]{figure/tradeoff.pdf}
+    \caption{\cubic consistently achieves Pareto-optimal quality–efficiency trade-offs across all three generation tasks.}
+    \label{fig:tradeoff}
+\end{figure}
+\input{sections/0-abstract}
+\input{sections/1-intro}
+\input{sections/2-background}
+\input{sections/3-motiv}
+\input{sections/4-method}
+\input{sections/5-eval}
+\input{sections/6-discuss}
+
+\bibliographystyle{plain}
+\bibliography{reference}
+\newpage
+\appendix
+\input{sections/7-appendix}
+\clearpage
+\input{sections/checklist}
+\end{document}

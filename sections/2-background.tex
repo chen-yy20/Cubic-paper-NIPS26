@@ -1,0 +1,15 @@
+\section{Related Work}
+\paragraph{Flow Matching}
+Superseding traditional noise-prediction diffusion models~\cite{ddpm, ddim}, \emph{Flow Matching} (FM)~\cite{flowmatching,rectifiedflow} learns a continuous-time velocity field to transport samples from a prior to the data distribution along simple probability paths.
+A canonical example is the straight-line interpolation path:
+$$
+x_t = (1 - t)\, x_0 + t\, x_1, \quad t \in [0, 1]
+$$
+This formulation yields a smoother, mathematically tractable vector field, drastically reducing the ODE integration steps required for high-fidelity generation. FM now serves as the default backbone for state-of-the-art generative architectures~\cite{opensora2,flux,wan,hunyuan,sd3,firered}.
+
+
+\paragraph{Cache-based Acceleration}
+Cache-based methods offer a training-free, plug-and-play acceleration paradigm by reusing redundant intermediate features along the denoising trajectory. Existing works explore a vast spectrum of caching granularities: from coarse step-level~\cite{teacache,magcache,meancache,taylorseer} or layer-level skipping~\cite{blockdance,adnan2025foresightadaptivelayerreuse}, to fine-grained attention partial reuse~\cite{pab,deltadit,ditfastattn}, and down to the most granular token-level selective updates~\cite{tokencache,ras,jano}. However, navigating this design space is fundamentally hindered by the granularity dilemma and an over-reliance on empirical heuristics.
+
+\paragraph{Optimized Samplers and Kernels}
+Another paradigm focuses on modifying the solving process or computational operators. Algorithmically, distillation and reflow techniques~\cite{distill1,rectifiedflow} reduce integration steps by distilling generation trajectories into simpler paths. System-wise, quantized~\cite{sageattention1} or sparse attention kernels~\cite{sparsevideogen} are developed to mitigate the quadratic attention bottleneck in long sequences. Despite their effectiveness, these methods typically require auxiliary training data or architecture-specific modifications. Importantly, they are orthogonal to \cubic, allowing for potential cumulative speedups.

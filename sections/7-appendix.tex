@@ -1,0 +1,439 @@
+\appendix
+\section{Theoretical Justification of \cubic}
+\label{app:cubic_theory}
+
+This section provides the theoretical justification for the curvature-aware
+caching policy used in \cubic. We first analyze the state error induced by
+cache reuse and show that it is jointly controlled by local trajectory
+curvature and the cache reuse interval. We then convert this error model
+into a block-wise interval allocation problem under a global computation
+budget and derive the optimal reuse interval. Finally, we show how the
+required curvature can be approximated online using endpoint prediction
+drift without additional model forward passes.
+
+\subsection{Curvature Approximation}
+\label{app:curvature_proxy}
+
+The optimal interval derived in Sec.~\ref{sec:optimizer} depends on the token-wise curvature $\kappa^{(i)}$. Directly computing $\kappa^{(i)}(t)=\|d v_\theta^{(i)}/dt\|_2$, however, requires Jacobian or higher-order derivative information and is therefore expensive for large-scale Flow Matching models. \cubic instead uses endpoint prediction drift as an online curvature proxy.
+
+For a spatial token indexed by $i$, define the one-step endpoint prediction at time $t$ as
+\begin{equation}
+    \hat{x}_1^{(i)}(t)
+    =
+    x^{(i)}(t)
+    +
+    (1-t)
+    v_\theta^{(i)}(x(t),t).
+    \label{eq:app_endpoint_pred}
+\end{equation}
+This quantity is the endpoint that would be reached at $t=1$ if the current velocity were kept constant. If the local trajectory is nearly linear, endpoint predictions at nearby times should remain almost unchanged. In contrast, a curved trajectory produces a noticeable endpoint drift.
+
+Taking the total derivative of Eq.~\eqref{eq:app_endpoint_pred} along the exact trajectory gives
+\begin{align}
+    \frac{d \hat{x}_1^{(i)}}{dt}
+    &=
+    \frac{d x^{(i)}}{dt}
+    -
+    v_\theta^{(i)}(x(t),t)
+    +
+    (1-t)
+    \frac{d v_\theta^{(i)}}{dt}
+    \nonumber \\
+    &=
+    (1-t)
+    \frac{d v_\theta^{(i)}}{dt}.
+    \label{eq:app_endpoint_derivative}
+\end{align}
+Let $t_{a_{m-1}}$ and $t_{a_m}$ be two consecutive anchor steps, and denote $\Delta t_{a_m}=t_{a_m}-t_{a_{m-1}}$. A first-order Taylor expansion gives
+\begin{equation}
+    \hat{\delta}^{(i,m)}
+    =
+    \hat{x}_1^{(i)}(t_{a_m})
+    -
+    \hat{x}_1^{(i)}(t_{a_{m-1}})
+    \approx
+    (1-t_{a_m})
+    \frac{d v_\theta^{(i)}}{dt}(t_{a_m})
+    \Delta t_{a_m}.
+\end{equation}
+Taking norms yields
+\begin{equation}
+    \left\|
+    \hat{\delta}^{(i,m)}
+    \right\|_2
+    \approx
+    (1-t_{a_m})
+    \Delta t_{a_m}
+    \kappa^{(i)}(t_{a_m}).
+    \label{eq:app_drift_curvature_relation}
+\end{equation}
+Therefore, the normalized endpoint drift
+\begin{equation}
+    \hat{\kappa}^{(i)}
+    =
+    \frac{
+    \left\|
+    \hat{\delta}^{(i,m)}
+    \right\|_2
+    }{
+    (1-t_{a_m})\Delta t_{a_m}
+    }
+    \label{eq:app_kappa_estimator}
+\end{equation}
+serves as an online approximation of $\kappa^{(i)}(t_{a_m})$.
+
+This proxy uses only quantities already available at anchor steps, namely the current latent state and the model-predicted velocity. It therefore requires no additional model forward passes. 
+
+
+
+
+
+\subsection{Error Modeling of Cache Reuse}
+\label{app:error_modeling}
+
+We first derive the local state error induced by cache reuse at the
+position level. Consider a block $b$ that is fully recomputed at time
+$t_0$, producing the cached velocity
+\begin{equation}
+    v_0^{(b)} = v_\theta^{(b)}(x(t_0),t_0).
+\end{equation}
+If this velocity is reused for the next $\tau_b$ solver steps, the local
+approximate dynamics follow a zero-order hold:
+\begin{equation}
+    \frac{dx_{\textrm{exact}}^{(b)}(t)}{dt}=v_0^{(b)}.
+\end{equation}
+Let $x_{\textrm{exact}}^{(b)}(t)$ denote the exact trajectory. The cache-induced state
+error is
+\begin{equation}
+    \varepsilon_b(t)
+    =
+   x_{\textrm{cache}}^{(b)}(t)-x_{\textrm{exact}}^{(b)}(t)
+    =
+    \int_{t_0}^{t}
+    \left[
+    v_0^{(b)}-v_\theta^{(b)}(x(t'),t')
+    \right]dt'.
+\end{equation}
+
+We quantify the local trajectory curvature at block $b$ by the rate of
+change of the velocity field along the exact trajectory:
+\begin{equation}
+    \kappa_b(t)
+    =
+    \left\|
+    \frac{d v_\theta^{(b)}}{dt}(x(t),t)
+    \right\|_2 .
+    \label{eq:app_curvature_def}
+\end{equation}
+Assume that $\kappa_b(t)\le \bar{\kappa}_b$ within the reuse window. Then
+the velocity mismatch satisfies
+\begin{equation}
+    \left\|
+    v_0^{(b)}-v_\theta^{(b)}(x(t),t)
+    \right\|_2
+    \le
+    \bar{\kappa}_b(t-t_0).
+\end{equation}
+Integrating over a reuse window of length $\tau_b\Delta t$ gives
+\begin{equation}
+    \left\|\varepsilon_b(t_0+\tau_b\Delta t)\right\|_2
+    \le
+    \frac{1}{2}
+    \bar{\kappa}_b
+    \tau_b^2
+    \Delta t^2 .
+    \label{eq:app_zoh_error_bound}
+\end{equation}
+
+
+The measured cache-induced error follows an approximate power-law dependence on both the reuse interval $\tau$ and the local curvature proxy $\kappa$, supporting the error bound in Eq.~\eqref{eq:app_zoh_error_bound}.
+
+Therefore, cache reuse introduces a state error that grows linearly with
+local curvature and quadratically with the reuse interval. Taking the
+squared norm as the cache-loss surrogate gives
+\begin{equation}
+    \ell_b(\tau_b)
+    =
+     \left\|\varepsilon_b(t_0+\tau_b\Delta t)\right\|_2^2
+    \lesssim
+    \frac{1}{4}
+    \bar{\kappa}_b^2
+    \tau_b^4
+    \Delta t^4 .
+\end{equation}
+Dropping shared constants yields the default surrogate
+\begin{equation}
+    \ell_b(\tau_b)
+    \propto
+    \kappa_b^2 \tau_b^4 .
+    \label{eq:app_surrogate_default}
+\end{equation}
+More generally, we write
+\begin{equation}
+    \ell_b(\tau_b)
+    =
+    a_b
+    \kappa_b^\alpha
+    \tau_b^\beta ,
+    \label{eq:app_general_surrogate}
+\end{equation}
+where the theoretical default is $(\alpha,\beta)=(2,4)$.
+\subsection{Optimal Cache Reuse Interval under a Target Speedup}
+\label{app:optimal_interval}
+
+We next derive the optimal block-wise reuse interval under a target
+speedup. Let $\tau_b$ denote the update interval of block $b$, and let
+$\mathcal{B}_b$ be the set of  tokens contained in this block.
+Since different blocks may contain different numbers of tokens, both the
+cache-induced error and the computation reduction should be weighted by
+the block size $|\mathcal{B}_b|$.
+
+Using the generalized cache-loss surrogate from
+Eq.~\eqref{eq:app_general_surrogate}, we consider the following
+block-weighted optimization problem:
+\begin{equation}
+    \min_{\{\tau_b\}_{b=1}^{B}}
+    \sum_{b=1}^{B}
+    |\mathcal{B}_b|
+    \kappa_b^\alpha
+    \tau_b^\beta,
+    \qquad
+    \mathrm{s.t.}
+    \quad
+    \sum_{b=1}^{B}
+    \frac{|\mathcal{B}_b|}{N}
+    \frac{1}{\tau_b}
+    =
+    \frac{1}{\rho},
+    \quad
+    \tau_b\ge 1,
+    \label{eq:app_interval_opt}
+\end{equation}
+where $N=\sum_{b=1}^{B}|\mathcal{B}_b|$ is the total number of spatial
+tokens, $\rho$ is the target speedup, and $\kappa_b$ is the block-wise
+curvature estimate. The constraint states that the block-size-weighted
+average update rate equals the reciprocal of the target speedup.
+
+Ignoring integer and box constraints, the Lagrangian is
+\begin{equation}
+    \mathcal{L}
+    =
+    \sum_{b=1}^{B}
+    |\mathcal{B}_b|
+    \kappa_b^\alpha
+    \tau_b^\beta
+    +
+    \lambda
+    \left(
+    \sum_{b=1}^{B}
+    \frac{|\mathcal{B}_b|}{N}
+    \frac{1}{\tau_b}
+    -
+    \frac{1}{\rho}
+    \right).
+\end{equation}
+Setting $\partial\mathcal{L}/\partial\tau_b=0$ gives
+\begin{equation}
+    |\mathcal{B}_b|
+    \beta
+    \kappa_b^\alpha
+    \tau_b^{\beta-1}
+    -
+    \lambda
+    \frac{|\mathcal{B}_b|}{N}
+    \tau_b^{-2}
+    =
+    0.
+\end{equation}
+The block size $|\mathcal{B}_b|$ appears in both the objective and the
+constraint, and therefore cancels out in the first-order optimality
+condition. We obtain
+\begin{equation}
+    \tau_b^\star
+    \propto
+    \kappa_b^{-\alpha/(\beta+1)}.
+    \label{eq:app_tau_general}
+\end{equation}
+With the squared-error default $(\alpha,\beta)=(2,4)$, this becomes
+\begin{equation}
+    \tau_b^\star
+    \propto
+    \kappa_b^{-2/5}.
+    \label{eq:app_tau_two_fifths}
+\end{equation}
+Thus, high-curvature blocks are refreshed more frequently, whereas
+low-curvature blocks can safely reuse cached states for longer intervals.
+
+To satisfy the target speedup constraint, we normalize the proportional
+rule. Let $\gamma=\alpha/(\beta+1)$. Then the continuous interval is
+\begin{equation}
+    \tilde{\tau}_b
+    =
+    \rho
+    \cdot
+    \frac{
+    \frac{1}{N}
+    \sum_{j=1}^{B}
+    |\mathcal{B}_j|
+    \kappa_j^\gamma
+    }{
+    \kappa_b^\gamma
+    }.
+    \label{eq:app_tau_closed_form}
+\end{equation}
+In practice, we use the squared-error default $\gamma=2/5$ and discretize
+the interval as
+\begin{equation}
+    \tau_b
+    =
+    \mathrm{round}
+    \left(
+    \rho'
+    \cdot
+    \frac{
+    \frac{1}{N}
+    \sum_{j=1}^{B}
+    |\mathcal{B}_j|
+    \kappa_j^{2/5}
+    }{
+    \kappa_b^{2/5}+\varepsilon
+    }
+    \right),
+    \label{eq:app_tau_discrete}
+\end{equation}
+where $\rho'$ absorbs the adjustment caused by rounding and clipping, and
+$\varepsilon$ prevents numerical instability for near-zero curvature. We
+set $\tau_{\min}=1$ so that high-curvature blocks can be recomputed at
+every step.
+
+
+
+
+% \subsection{Assumptions and Scope}\todo{}
+% \label{app:assumptions}
+
+% The above derivation relies on the following assumptions.
+
+% \paragraph{Smoothness and bounded curvature.}
+% Within each cache reuse window, the velocity field is assumed to be
+% sufficiently smooth along the sampling trajectory, and the local curvature
+% is assumed to be bounded. This ensures the quadratic time scaling of the
+% ZOH error and justifies endpoint drift as a first-order curvature proxy.
+
+% \paragraph{Mid-stage curvature stationarity.}
+% \cubic mainly applies adaptive caching in the middle stage of sampling.
+% At this stage, the global structure is typically established, while final
+% high-frequency refinement has not yet dominated the dynamics. Therefore,
+% curvature estimates from anchor steps can guide cache reuse over short
+% subsequent windows.
+
+% \paragraph{Approximate block-wise error additivity.}
+% The optimization objective treats cache errors from different blocks as
+% approximately additive. This is not exact for DiT backbones with global
+% self-attention. However, \cubic periodically refreshes all token states at
+% anchor steps, and during selective steps active tokens still attend to
+% the full sequence through cached key/value states. Thus, cross-block error
+% propagation is restricted within short reuse windows.
+
+% \paragraph{Numerical stability near the endpoint.}
+% Since the curvature proxy contains the normalization factor $(1-t)$,
+% the estimate can become unstable near $t=1$. Therefore, \cubic restores
+% full forward passes in the final sampling stage and uses $\varepsilon$ or
+% stops updating the curvature proxy to avoid unstable scheduling decisions.
+
+\section{Details of Partitioning Strategy}
+\label{app:parition}
+
+In Sec.~\ref{sec:anchor_step}, we introduced the morphology-guided adaptive partitioning strategy. We find that the exact partitioning scheme has a minor impact on overall performance. For long-sequence, high-overhead models such as Wan (sequence length 32760), we adopt morphology-guided partitioning to accurately select tokens; for shorter, fast-inference models (sequence length 4096), a simple fixed-size partitioning achieves comparable results with lower overhead. We provide the detailed algorithmic steps of the morphology-guided strategy here. The input is the raw token-space curvature map $\kappa \in \mathbb{R}^{F_t \times H_t \times W_t}$ computed at the current anchor step.
+
+\paragraph{1. Spatial-Temporal Reduction}
+Since the spatial partition should remain stable across the subsequent selective steps within the same anchor interval, we first aggregate the curvature information along the temporal dimension to obtain a 2D spatial curvature map:
+\begin{equation}
+    \bar{\kappa}_{h,w} = \frac{1}{F_t}\sum_{f=1}^{F_t}\kappa_{f,h,w}.
+\end{equation}
+
+\paragraph{2. Geometric Prior Extraction}
+We binarize the spatial map to distinguish complex (foreground) regions from flat (background) regions. Given a high percentile threshold $q_f$ (e.g., $q_f = 0.85$), we construct the initial foreground mask:
+\begin{equation}
+    M_{h,w} = \mathbb{1}\!\left[ \bar{\kappa}_{h,w} \ge \operatorname{Quantile}_{q_f}(\bar{\kappa}) \right].
+\end{equation}
+Raw thresholding often yields spatial noise or fragmented boundaries. To regularize the partition boundary without any model forward passes, we apply a sequence of standard morphological operations to $M$: opening and closing (to remove salt-and-pepper noise and fill small holes), followed by dilation and erosion (to smooth jagged edges), and finally small connected-component filtering (to discard degenerate micro-regions). This yields a cleaned, structurally stable mask $\tilde{M}$.
+
+\paragraph{3. Recursive Spatial Bisection}
+Given the geometric prior $\tilde{M}$, we partition the entire 2D token grid $\Omega$ into non-overlapping rectangles $\mathcal{P}=\{\mathcal{B}_b\}$. We define two target block sizes: a fine granularity $S_{\text{fg}}$ for foreground and a coarse granularity $S_{\text{bg}}$ for background ($S_{\text{fg}} < S_{\text{bg}}$). 
+
+The algorithm starts from the root region $R = \Omega$ and recursively evaluates it. For any current rectangular region $R$, we calculate its foreground ratio $p_f = \frac{\sum \tilde{M}_{h,w \in R}}{|R|}$ and its intra-region curvature Coefficient of Variation (CV). The region $R$ is \textbf{split} if any of the following conditions are met:
+\begin{enumerate}
+    \item Mixed Composition: $p_f$ falls within a mixed interval $[p_{\text{low}}, p_{\text{high}}]$ (e.g., $[0.2, 0.8]$), indicating it contains a blend of complexities.
+    \item High Internal Variance: The curvature CV within $R$ exceeds a consistency threshold $\tau_{\text{cv}}$.
+    \item Size Exceeds Target: The height or width of $R$ exceeds the target size determined by its dominant property (i.e., $S_{\text{fg}}$ if $p_f > 0.5$, else $S_{\text{bg}}$).
+\end{enumerate}
+If split, we choose the splitting axis (horizontal or vertical) that minimizes the foreground variance across the split, and bisect $R$. If none of the criteria are met, $R$ is finalized as a block $\mathcal{B}_b \in \mathcal{P}$. The output satisfies:
+\begin{equation}
+    \bigcup_{b=1}^{\mathcal{B}}\mathcal{\mathcal{B}}_b=\Omega, \quad \mathcal{B}_b \cap \mathcal{\mathcal{B}}_{b'}=\varnothing\;(b\ne b').
+\end{equation}
+
+\paragraph{4. Aggregation and Fallback}
+Once $\mathcal{P}$ is fixed, we aggregate the token-wise curvature into a block-wise scheduling signal using the spatial mean:
+\begin{equation}
+    \kappa_b = \frac{1}{|\mathcal{B}_b|} \sum_{i \in \mathcal{B}_b}\kappa_i.
+\end{equation}
+This mean aggregation is stable precisely because Step 3 guarantees that any block containing high-curvature outliers would have been further subdivided. To ensure robustness in edge cases (e.g., entirely uniform curvature maps), a standard uniform grid partitioning using $S_{\text{bg}}$ remains available as an explicit fallback configuration.
+
+\newpage
+
+\section{\cubic Case Study}
+\label{app:case_study}
+
+\begin{figure}[!h]
+    \centering
+    \includegraphics[width=\linewidth]{figure/casestudy.pdf}
+    \caption{\cubic case study on Flux.1 with target speedup $3\times$.}
+    \label{fig:case_study}
+\end{figure}
+
+
+\newpage
+\section{Detailed Results of \cubic Evaluation}
+\label{app:detail_result}
+We report the detailed parameter settings and performance of \cubic in Table~\ref{tab:detail}. For completeness, Table~\ref{tab:detail_baseline} provides the corresponding configurations and results of other baseline methods.
+
+\begin{table*}[h]
+\centering
+\caption{Parameters setting and performance of \cubic }
+\label{tab:detail}´
+\input{table/detail}
+\end{table*}
+
+\begin{table*}[h]
+\centering
+\caption{Parameters setting and performance of baselines. }
+\label{tab:detail_baseline}
+\input{table/detail_baseline}
+\end{table*}
+
+\newpage
+
+\section{Visualization of \cubic}
+\label{app_vis}
+We provide visualization comparison between original video generation and \cubic on Flux-1, FireRed and Wan 2.1. We evaluate \cubic on Text-to-Image generation, Image Editing, and Text-to-Video generation using the default resolution of each model. Results demonstrates \cubic can preserve high pixel-level fidelity, achieving similar generation quality compared with the original generation.
+\begin{figure*}[!h]
+    \centering
+    \includegraphics[width=\textwidth]{figure/flux_ori_cubic_comparison.pdf}
+    \caption{Flux visualization comparison between original images (top) and \cubic results (bottom)}
+    \label{fig:flux_visual}
+\end{figure*}
+
+\begin{figure*}[!h]
+    \centering
+    \includegraphics[width=\textwidth]{figure/firered_ori_cubic_comparison.pdf}
+    \caption{FireRed visualization comparison between original images (top) and \cubic results (bottom)}
+    \label{fig:firered_visual}
+\end{figure*}
+
+\begin{figure*}[!h]
+    \centering
+    \includegraphics[width=\textwidth]{figure/wan_ori_cubic_video_comparison.pdf}
+    \caption{Wan 1.3B visualization comparison between original vedios (top) and \cubic results (bottom)}
+    \label{fig:wan_visual}
+\end{figure*}

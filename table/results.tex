@@ -1,0 +1,53 @@
+\resizebox{\textwidth}{!}{
+\begin{tabular}{l c c c c c c c c}
+\toprule
+\textbf{Model} & \textbf{Method} 
+& $\mathrm{Latency(s)}\downarrow$ 
+& $\mathrm{Speedup}\uparrow$
+& $\mathrm{PSNR}\uparrow$ 
+& $\mathrm{SSIM}\uparrow$ 
+& $\mathrm{LPIPS}\downarrow$ 
+& $\mathrm{FID/FVD}\downarrow$ 
+& $\mathrm{HPSv3/VBench}\uparrow$ \\
+\midrule
+
+\multirow{7}{*}{\textbf{Flux-1}} 
+& $\mathrm{Baseline}$ & $11.59\pm0.05$ & -- & -- & -- & -- & -- & 10.68 \\
+& $\mathrm{PAB}$ & $6.40\pm0.11$ & 1.81$\times$ & 20.37 & 0.7702 & 0.2574 & 77.37 & 10.65 \\
+& $\mathrm{TeaCache}$ & $6.24\pm0.08$ & 1.86$\times$ & 22.88 & 0.8514 & 0.1490 & 45.87 & 10.83 \\
+& $\mathrm{ToCa}$ &$ 6.39\pm0.04$ & 1.81$\times$ & 19.68 & 0.7493 & 0.2726 & 70.76 & 10.62 \\ 
+& $\mathrm{TaylorSeer}$ & $6.83\pm0.08$ & 1.70$\times$ & 26.29 & 0.8920 & 0.0994 & \textbf{26.80} & 10.82 \\
+\rowcolor{lightbluerow}
+& \cubic~(std) & $6.14\pm0.24$ & 1.89$\times$ & \textbf{27.78} & \textbf{0.8998} & \textbf{0.0946} & 27.81 & 10.87 \\
+\rowcolor{lightbluerow}
+& \cubic~(fast) & $\mathbf{4.82\pm0.21}$ & \textbf{2.40$\times$} & 25.14 & 0.8457 & 0.1730 & 47.32 & \textbf{10.97} \\
+
+\midrule
+
+\multirow{7}{*}{\textbf{FireRed}} 
+& $\mathrm{Baseline}$ & $39.14\pm0.09$ & -- & -- & -- & -- & -- & 8.17 \\
+& $\mathrm{PAB}$ & $23.70\pm0.17$ & 1.65$\times$ & 24.39 & 0.8888 & 0.0929 & 39.41 & 7.95 \\
+& $\mathrm{TeaCache}$ & $16.91\pm0.26$ & 2.31$\times$ & 23.80 & 0.8955 & 0.0995 & 41.03 & 7.83 \\
+& $\mathrm{ToCa}$ & $20.06\pm0.04$ & 1.95$\times$ & 21.09 & 0.7884 & 0.1779 & 67.25 & 7.18 \\
+& $\mathrm{TaylorSeer}$ & $21.04\pm0.04$ & 1.86$\times$ & 25.12 & 0.9102 & 0.0837 & 33.70 & \textbf{8.07} \\
+\rowcolor{lightbluerow}
+& \cubic~(std) & $18.26\pm0.57$ & 2.14$\times$ & \textbf{30.67} & \textbf{0.9538} & \textbf{0.0468} & \textbf{18.55} & 8.00 \\
+\rowcolor{lightbluerow}
+& \cubic~(fast) & $\mathbf{16.83\pm0.42}$ & \textbf{2.33$\times$} & 27.81 & 0.9201 & 0.0907 & 32.18 & 7.90 \\
+
+\midrule
+
+\multirow{7}{*}{\textbf{Wan 2.1}} 
+& $\mathrm{Baseline}$ & $101.54\pm2.40$ & -- & -- & -- & -- & -- & 79.90 \\
+& $\mathrm{PAB}$ & $40.60\pm0.10$ & 2.50$\times$ & 22.36 & 0.8000 & 0.1670 & 57.78 & 78.41 \\
+& $\mathrm{TeaCache}$ & $61.44\pm1.92$ & 1.65$\times$ & 30.27 & 0.9270 & 0.0454 & 11.72 & 79.79 \\
+& $\mathrm{ToCa}$ & $44.00\pm2.26$ & 2.31$\times$ & 19.19 & 0.7383 & 0.2405 & 84.04 & 78.42 \\
+& $\mathrm{TaylorSeer}$ & $39.24\pm2.56$ & 2.59$\times$ & 15.80 & 0.6410 & 0.3521 & 137.06 & 78.82 \\
+\rowcolor{lightbluerow}
+& \cubic~(std) & $62.35\pm2.77$ & 1.63$\times$ & \textbf{32.76} & \textbf{0.9481} & \textbf{0.0317} & \textbf{7.92} & 79.37 \\
+\rowcolor{lightbluerow}
+& \cubic~(fast) & $\mathbf{37.32\pm0.62}$ & \textbf{2.72$\times$} & 26.39 & 0.8740 & 0.0986 & 31.76 & \textbf{80.03} \\
+
+\bottomrule
+\end{tabular}
+}

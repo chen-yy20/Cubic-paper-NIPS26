@@ -1,0 +1,231 @@
+\section{Methodology}
+\label{sec:method}
+
+We propose \cubic, a curvature-driven dynamic caching framework for
+Flow Matching inference. The key idea is to connect local trajectory
+geometry with runtime caching decisions: regions with locally smooth
+trajectories can tolerate more aggressive cache reuse, whereas regions
+with larger curvature should be refreshed more frequently. To make this
+principle practical, \cubic first models the cache-induced state error and
+derives a curvature-aware interval allocation rule. It then determines an
+appropriate cache granularity in token space and estimates local
+curvature online using a zero-overhead endpoint prediction drift proxy.
+\subsection{Overview}
+\label{sec:method_overview}
+
+Recall from Sec.~\ref{sec:motiv_theory} that caching intermediate features for $\tau$ steps is mathematically equivalent to extending the effective local integration step size by a factor of $\tau$. \cubic exploits the spatial heterogeneity of permissible step sizes by alternating between two types of steps during the ODE solving process:
+\begin{itemize}
+    \item \textbf{Anchor steps}: full forward passes that refresh the exact velocity prediction for all tokens, update the curvature proxy, and re-evaluate the caching policy.
+    \item \textbf{Selective steps}: sparse forward passes that recompute only a subset of tokens (the active tokens), while the remaining tokens (the frozen tokens) reuse cached intermediate states and outputs.
+\end{itemize}
+This anchor-selective loop is governed by three consecutive operations at each anchor step: measuring the curvature proxy, partitioning the token space, and optimizing block-specific update intervals.
+% \subsection{Overview}
+% \label{sec:method_overview}
+
+% We propose \cubic, a curvature-driven dynamic caching framework for Flow
+% Matching inference. Recall from Sec.~\ref{sec:motiv_theory} that reusing
+% cached intermediate features for $\tau$ steps effectively enlarges the
+% local integration step size by a factor of $\tau$. Since different spatial
+% regions exhibit different trajectory curvatures, they also have different
+% tolerances to cache reuse: locally smooth regions can be reused more
+% aggressively, whereas high-curvature regions should be refreshed more
+% frequently.
+
+% \cubic realizes this principle through an anchor-selective sampling loop.
+% At \textbf{anchor steps}, a full forward pass refreshes velocity
+% predictions, updates the curvature proxy, and re-evaluates the caching
+% policy. At \textbf{selective steps}, only active tokens are recomputed,
+% while frozen tokens reuse cached intermediate states and outputs. Each
+% anchor step then applies three operations: curvature proxy estimation,
+% cache granularity selection, and curvature-aware interval optimization.
+\subsection{Curvature-induced Cache Error and Interval Optimization}
+\label{sec:error_optimization}
+
+\paragraph{\textbf{Error Modeling.}}
+During Flow Matching inference, the sampler advances the current state
+according to the velocity field predicted by the model. Consider a latent
+position $i$. Suppose a full computation is performed at time $t_0$,
+yielding the cached velocity
+\begin{equation}
+    v_0^{(i)}
+    =
+    v_\theta^{(i)}(x(t_0), t_0).
+    \label{eq:cached_velocity}
+\end{equation}
+If this cached result is reused for the following $\tau_i$ solver steps,
+the local update can be viewed as a zero-order hold approximation of the
+velocity field. Comparing this approximate trajectory with the exact
+trajectory, we define the cache-induced state error as
+\begin{equation}
+    \epsilon_i(t)
+    =
+    \tilde{x}^{(i)}(t)
+    -
+    x^{(i)}(t).
+    \label{eq:cache_state_error}
+\end{equation}
+
+Within a short reuse window, if the local trajectory curvature remains
+approximately stable, the variation of the velocity field along the
+trajectory is controlled by the local curvature $\kappa_i$. The
+zero-order hold approximation then yields the following error scaling (See details in ~\ref{app:error_modeling}):
+\begin{equation}
+    \left\|
+    \epsilon_i(t_0 + \tau_i \Delta t)
+    \right\|
+    \lesssim
+    \frac{1}{2}
+    \kappa_i
+    \tau_i^2
+    \Delta t^2.
+    \label{eq:cache_error_bound}
+\end{equation}
+This relation shows that the cache-induced error grows with both local
+curvature and reuse length. Hence, smoother latent positions can tolerate
+longer reuse, while high-curvature positions should be refreshed more
+frequently.
+
+\paragraph{\textbf{Interval Optimization.}}
+We next convert the above error model into an interval allocation rule
+over latent positions. Let $c_i$ denote the computational cost of
+recomputing latent position $i$. Since position $i$ is recomputed once
+every $\tau_i$ steps, its average per-step computation cost is
+$c_i / \tau_i$. Under a target computation budget $C$, we determine the
+reuse intervals by solving
+\begin{equation}
+    \min_{\{\tau_i\}_{i=1}^{N}}
+    \sum_{i=1}^{N}
+     \left\|\alpha_i \kappa_i \tau_i^2\right\|^2,
+    \quad
+    \mathrm{s.t.}
+    \quad
+    \sum_{i=1}^{N}
+    \frac{c_i}{\tau_i}
+    =
+    C .
+    \label{eq:interval_optimization_position}
+\end{equation}
+
+The resulting (~\ref{app:optimal_interval}) closed-form optimum satisfies $\tau_b^\star \propto \kappa_b^{-\alpha/(\beta+1)}.$
+Using the theoretical default $(\alpha,\beta)=(2,4)$ yields\todo{check.}
+\begin{equation}
+    \tau_b^\star \propto \kappa_b^{-2/5}.
+\end{equation}
+Thus, \cubic naturally assigns shorter intervals to high-curvature blocks and longer intervals to low-curvature ones.
+
+\subsection{Cache Granularity Design}
+\label{sec:partitioner}
+
+The previous subsection gives an ideal position-wise allocation rule:
+latent positions with larger curvature should be refreshed more
+frequently. In practice, however,
+assigning an independent cache policy to every token would introduce
+substantial scheduling and indexing overhead. Therefore, \cubic first
+determines an appropriate cache granularity in token space and then
+applies the interval allocation rule at the block level.
+
+Specifically, \cubic defines block partitions directly in token space. At each anchor step, it selects a global block size $\mathbf{b}=(b_f,b_h,b_w)$ from a candidate set and tiles the entire token grid uniformly with that size. Thus, the partition is adaptive in \emph{granularity} but uniform in \emph{tiling}.
+
+For any candidate block size $\mathbf{b}$ that induces a partition $\mathcal{P}(\mathbf{b})=\{B_j(\mathbf{b})\}$, we measure intra-block consistency by the coefficient of variation (CV). Unlike absolute variance, CV captures relative fluctuations, making it invariant to the absolute scale of curvature:
+\begin{equation}
+    \mathrm{cv}_j(\mathbf{b}) =
+    \frac{\mathrm{Std}(\{\kappa_i\}_{i \in B_j(\mathbf{b})})}
+    {\mathrm{Mean}(\{\kappa_i\}_{i \in B_j(\mathbf{b})}) + \varepsilon}.
+\end{equation}
+The selection principle is simple: \textbf{choose the coarsest block size whose induced blocks remain internally curvature-consistent}. In practice, this criterion is approximated using block-wise CV statistics such as mean-CV and p90-CV. If a candidate already satisfies the consistency threshold, \cubic prefers the largest block size; otherwise, it falls back to the candidate with the best consistency statistics.
+
+Once the partition is fixed, we aggregate token-wise curvature into a representative block curvature. Rather than using the block mean, we adopt a conservative high quantile to prevent a few high-curvature tokens from being drowned out by the block average:
+\begin{equation}
+    \kappa_b = \mathrm{Quantile}_{q}\big(\{\kappa_i\}_{i \in B_b}\big), \qquad q \approx 0.9.
+\end{equation}
+
+\subsection{Zero-overhead Curvature Proxy}
+\label{sec:curvature_proxy}
+
+The block-wise caching policy requires estimating the local curvature
+$\kappa_b$ during inference. Directly computing trajectory curvature,
+however, would require Jacobian or higher-order derivative information,
+which is impractical for large-scale Flow Matching models. We therefore
+introduce a zero-overhead block-wise curvature proxy based on endpoint
+prediction drift.
+
+For a block $b$, the endpoint prediction at time $t$ is defined as
+\begin{equation}
+    \hat{x}_{1}^{(b)}(t)
+    =
+    x^{(b)}(t)
+    +
+    (1 - t)
+    v_{\theta}^{(b)}(x(t), t),
+    \label{eq:block_endpoint_prediction}
+\end{equation}
+where $x^{(b)}(t)$ and $v_{\theta}^{(b)}(x(t),t)$ denote the latent state
+and predicted velocity restricted to block $b$, respectively. If the
+local trajectory of this block is nearly linear, its endpoint prediction
+should remain stable across neighboring anchor steps. In contrast, a
+curved block trajectory leads to a noticeable drift in the predicted
+endpoint.
+
+Let $t_{a_{m-1}}$ and $t_{a_m}$ denote two consecutive anchor steps. We
+define the block-wise endpoint prediction drift as
+\begin{equation}
+    \Delta \hat{x}_{1}^{(b,m)}
+    =
+    \hat{x}_{1}^{(b)}(t_{a_m})
+    -
+    \hat{x}_{1}^{(b)}(t_{a_{m-1}}).
+    \label{eq:block_endpoint_drift}
+\end{equation}
+This drift approximates the local token-wise trajectory curvature (~\ref{app:curvature_proxy}):
+\begin{equation}
+    \left\| \Delta \hat{x}_{1}^{(b,m)}\right\|
+    \approx
+    \kappa_i(t_{a_m})\,(1-t_{a_m})\,\Delta t_{a_m},
+\end{equation}
+where $\Delta t_{a_m} = |t_{a_m} - t_{a_{m-1}}|$ is the interval between two anchor observations. Hence, the normalized quantity $\| \Delta \hat{x}_{1}^{(b,m)}\| / \left[(1-t_{a_m})\Delta t_{a_m}\right]$ serves as a zero-overhead proxy for curvature. This proxy only uses quantities already available at anchor steps, namely
+the current latent state and the model-predicted velocity. Therefore, it
+introduces no additional model forward passes. The estimated block-wise
+curvature $\hat{\kappa}_b^{(m)}$ is then used to instantiate the reuse
+interval $\tau_b$ according to the curvature-aware allocation rule.
+
+\subsection{Selective Token DiT Forward}
+\label{sec:runtime}
+
+Given the partition $\mathcal{P}$ and the block intervals $\{\tau_b\}$, the active blocks at selective step $k$ are defined as
+\begin{equation}
+    \mathcal{A}_k = \{ b \in \mathcal{P} \mid s_k \bmod \tau_b = 0 \},
+\end{equation}
+where $s_k$ is the local step index within the selective phase. This induces the active and frozen token sets
+\begin{equation}
+    \Omega_k^{\mathrm{act}} = \bigcup_{b \in \mathcal{A}_k} B_b,
+    \qquad
+    \Omega_k^{\mathrm{frz}} = \Omega \setminus \Omega_k^{\mathrm{act}}.
+\end{equation}
+
+At each Transformer layer, \cubic recomputes the Query, Key, Value, and FFN only for active tokens. Frozen tokens reuse cached per-layer states and final outputs. For active tokens, attention is evaluated against the full sequence by combining newly computed Key/Value tensors for active tokens with cached Key/Value tensors for frozen tokens:
+\begin{equation}
+    Y_\ell^{\mathrm{act}} =
+    \mathrm{Attn}\!\left(
+        Q_\ell^{\mathrm{act}},
+        K_\ell^{\mathrm{full}},
+        V_\ell^{\mathrm{full}}
+    \right).
+\end{equation}
+The final output of the selective step is then formed by merging newly computed active-token outputs with cached frozen-token outputs:
+\begin{equation}
+    v_k(\Omega) =
+    \mathrm{Merge}\!\left(
+        v_k^{\mathrm{act}}(\Omega_k^{\mathrm{act}}),
+        v_{k-1,\mathrm{cache}}(\Omega_k^{\mathrm{frz}})
+    \right).
+\end{equation}
+This selective forward engine is the component that actually yields computational savings: active tokens traverse the full DiT computation path, whereas frozen tokens participate only through cache reuse.
+
+To ensure robustness, \cubic executes selective forward only when the required caches are already initialized and shape-consistent. Otherwise, the runtime automatically falls back to a full forward pass to refresh the cache state.
+
+\subsection{End-to-End Inference Procedure}
+\label{sec:end2end}
+
+Putting the components together, \cubic integrates seamlessly into the standard sampling pipeline with minimal structural changes. The inference process is stabilized by standard bootstrap and termination mechanisms: it initiates with a few full forward passes to establish reliable curvature observations and cache states, enters the main anchor-selective loop dictated by the target speedup $\rho$, and concludes with full forward passes to preserve final-generation fidelity. 
+
+This pipeline turns local trajectory geometry into a concrete execution policy: the monitor estimates curvature, the partitioner designs granularity, the optimizer assigns refresh intervals, and the runtime engine realizes those decisions as selective token computation.

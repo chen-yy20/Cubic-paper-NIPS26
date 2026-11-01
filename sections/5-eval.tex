@@ -1,0 +1,78 @@
+\section{Evaluation}
+\subsection{Experiments Setup}
+\paragraph{Models and Baselines.}
+We evaluate \cubic across three representative generative settings: text-to-image generation using Flux-1-dev~\cite{flux}, instruction-guided image editing using FireRed-Image-Edit-1.0~\cite{firered}, and text-to-video generation using Wan2.1-T2V-1.3B~\cite{wan}. We compare with state-of-the-art feature caching baselines, including TokenCache (ToCa)~\cite{tokencache}, TeaCache~\cite{teacache}, Pyramid Attention Broadcast (PAB)~\cite{pab}, and TaylorSeer~\cite{taylorseer}. 
+
+\paragraph{Metrics and Evaluation Datasets} We measure acceleration using the end-to-end latency under the default inference settings of each task. Generation quality is evaluated with PSNR, SSIM, LPIPS, and FID/FVD for both image and video outputs. For image generation, we additionally report HPSv3~\cite{HPSv3}, while video generation is further evaluated using VBench metrics. Experiments are conducted on t2i-diversity-eval~\cite{brack2025howtotrain}, PIE-Bench++~\cite{Pie_bench}, and VBench~\cite{vbench} for image generation, image editing, and video generation, respectively.
+
+\paragraph{Implementation} 
+\label{sec:Implementation}
+Experiments run on NVIDIA H100 using PyTorch. \cubic acts as a non-intrusive wrapper, with all methods sharing identical prompts and seeds for fair comparison. For caching baselines, we use their official implementations on Flux and Wan; for FireRed, which lacks official baseline support, we implement compatible versions (details in Appendix.~\ref{app:detail_result}). Our full codebase will be open-sourced.
+
+\subsection{Main Results: Pareto-Optimal Acceleration}
+\paragraph{Quantitative Comparison}
+% 可以看到，Cubic在加速比更高的同时，比起其他cache加速方法达到了更高的生成质量。值得注意的是，对于attention在计算中耗时更大的模型（wan2.1),cubic更容易实现更高的加速。
+We evaluate the quality and efficiency of images and videos generated with \cubic (std: $\rho=2$, fast: $\rho=4$) against baseline methods, and summarize the results in Table \ref{tab:results}. Compared with existing caching-based acceleration methods, \cubic achieves higher speedups while preserving better generation quality. Notably, for models where attention accounts for a larger fraction of the overall computation, such as Wan2.1, \cubic can remove redundant computation more effectively, leading to more pronounced acceleration gains.
+\begin{table*}[t]
+\centering
+\caption{Quantitative evaluation of inference efficiency and visual quality in generation models.}
+\input{table/results.tex}
+\label{tab:results}
+\end{table*}
+\vspace{-7pt}
+\paragraph{Sensitivity Test on Quality-Latency Trade-off}
+Fig.~\ref{fig:tradeoff} reports the PSNR--speedup trade-off of \cubic and the compared baselines across different models. 
+Across a wide range of speedup ratios, \cubic consistently attains higher PSNR (with correspondingly stronger SSIM, LPIPS, and FID/FVD; see Appendix~\ref{app:detail_result}), thereby lying on the Pareto frontier of the quality--latency trade-off.
+
+
+% 这些实验都在flux上面做就好
+\subsection{Validating Theoretical Foundations}
+\vspace{-7pt}
+\paragraph{Accuracy of Curvature Estimation}
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\linewidth]{figure/theory.pdf}
+    \caption{Validating the theoretical foundations of \cubic. (a) Visualization of real and proxy trajectory curvature on Flux. (b) Patch-wise correlation between $\kappa_{proxy}$ and $\kappa_{real}$. (c) Error scaling with reuse interval $\tau$. (d) Error scaling with curvature proxy $\kappa_b$.}
+    \label{fig:theory_validation}
+\end{figure}
+
+We first validate whether the proposed endpoint-drift proxy accurately reflects true trajectory curvature. As shown in Fig.~\ref{fig:theory_validation}(a-b), the proxy closely matches both the spatial distribution and the relative magnitudes of the true curvature, exhibiting a strong linear correlation. This confirms that the proxy serves as a highly reliable online approximation for $\kappa^{(i)}$.
+
+\vspace{-7pt}
+\paragraph{Verification of the Cache Error Modeling}
+We validate the cache-error bound derived in Eq.~\ref{eq:error_bound}. Fig.~\ref{fig:theory_validation}(c-d) confirm that the cache-induced error scales approximately quadratically with the reuse interval $\tau$ and linearly with the curvature proxy $\kappa$. These empirical scaling laws perfectly align with our theoretical derivations, demonstrating that the error model accurately captures the dominant behavior of cache-induced degradation.
+
+% \paragraph{Optimality of Interval Allocation}
+% % 相同speedup，验证-2/5次幂的tau分配生成效果是最好的。
+
+\subsection{Ablation Studies on Core Components}
+
+In Table.~\ref{tab:ablation}, we measure overhead and quality impact of \cubic components on Flux with standard setup.
+\vspace{-7pt}
+\paragraph{Monitor: Zero-Cost Proxy}
+Despite introducing negligible system overhead, our drift proxy achieves generation quality remarkably close to that of the exact curvature computed via automatic differentiation. This validates our theoretical insight: the proxy successfully captures the essential trajectory geometry required for optimal scheduling, completely bypassing the prohibitive computational burden of explicit Jacobians.
+
+\input{table/ablation}
+\vspace{-7pt}
+\paragraph{Partitioner: Spatial Locality}
+While per-token scheduling theoretically offers maximum flexibility, it incurs prohibitive indexing overhead. \cubic's block-wise strategy exploits the spatial locality inherent in DiT attention, drastically reducing scheduling complexity while maintaining contextual coherence, thereby achieving superior fidelity over the fine-grained baseline.
+\vspace{-7pt}
+\paragraph{Sparse Executor: Dynamic KV and Linear Scaling}
+While a static KV cache prevents contextual isolation, it inevitably accumulates staleness errors. Our dynamic in-place update mechanism seamlessly resolves this by continuously refreshing the KV pool, minimizing staleness at negligible I/O cost.
+Notably, layer-wise KV caches introduce memory requirements that scales with sequence length and layer count (e.g., 0.35GB for Flux vs. 17.68GB for Wan). To ensure deployability on memory-constrained hardware, we integrate asynchronous CPU offloading, which completely eliminates the GPU memory footprint of the cache at a marginal 5\% latency overhead.
+
+\begin{wrapfigure}{r}{0.37\columnwidth}
+\vspace{-10pt}
+\centering
+\includegraphics[width=\linewidth]{figure/flops.pdf}
+\caption{FLOPs \& e2e speedup vs user-specified acceleration budget.}
+\label{fig:flops}
+\vspace{-10pt}
+\end{wrapfigure}
+Fig ~\ref{fig:flops} demonstrates that \cubic strategy effectively reduces flops in the selective phase, while the sparse executor efficiently transforms this into an end-to-end linear speedup. The speedup is lower than the user target because the speedup here only considers the selective phase; if end-to-end speedup is required, a simple conversion can be performed.
+
+
+
+\subsection{Case Study: Components visualization}
+\vspace{-7pt}
+Due to space constraints, detailed visualizations of the dynamic pipeline are deferred to Appendix~\ref{app:case_study}. At a target speedup of $3\times$, \cubic executes five anchor steps. The scheduling exhibits a clear temporal evolution: early steps show high and heterogeneous curvature, leading to diverse interval allocations; middle steps capture localized high-curvature windows; and late steps converge to uniform curvature with consistent caching strategies. Throughout the process, the sparse ratio is stably maintained around $0.33$, and the step latency correlates strictly with the active ratio.
